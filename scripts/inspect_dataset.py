@@ -5,9 +5,8 @@ import re
 
 
 
-DATASET_PATH = Path(
-    r"C:\Users\hyun\Documents\GitHub\pneumonia-diagnosis\data\raw\chest_xray"
-)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATASET_PATH = PROJECT_ROOT / "data" / "raw" / "chest_xray"
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
