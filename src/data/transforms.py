@@ -6,9 +6,7 @@ from torchvision import transforms
 from torchvision.transforms import InterpolationMode
 
 
-# =========================
 # 1. Aspect Ratio 유지 Resize + Padding
-# =========================
 class ResizeWithPadding:
     def __init__(self, target_size=224, fill=0):
         self.target_size = target_size
@@ -52,16 +50,12 @@ class ResizeWithPadding:
         return img
 
 
-# =========================
 # 2. ImageNet Normalization 값
-# =========================
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
 
 
-# =========================
 # 3. Train Transform
-# =========================
 train_transform = transforms.Compose([
     # 무조건 1채널 grayscale
     transforms.Grayscale(num_output_channels=1),
@@ -94,9 +88,7 @@ train_transform = transforms.Compose([
 ])
 
 
-# =========================
 # 4. Validation / Test Transform
-# =========================
 eval_transform = transforms.Compose([
     transforms.Grayscale(num_output_channels=1),
 
