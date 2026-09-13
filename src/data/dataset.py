@@ -22,13 +22,11 @@ class ChestXrayDataset(Dataset):
         else:
             self.project_root = Path(project_root)
 
-        # CSV 읽기
         df = pd.read_csv(self.csv_path)
 
         # train / val / test 중 원하는 split만 선택
         self.data = df[df["split"] == split].reset_index(drop=True)
 
-        # 문자열 label → 숫자 label
         self.label_map = {
             "NORMAL": 0,
             "PNEUMONIA": 1
@@ -44,7 +42,6 @@ class ChestXrayDataset(Dataset):
         if not image_path.is_absolute():
             image_path = self.project_root / image_path
 
-        # 이미지 로드
         image = Image.open(image_path)
 
         # NORMAL → 0, PNEUMONIA → 1
