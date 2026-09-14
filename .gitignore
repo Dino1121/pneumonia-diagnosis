@@ -9,6 +9,9 @@ data/processed/*
 models/*
 !models/.gitkeep
 
+# Experiment checkpoints
+experiments/**/*.pth
+
 # Python
 __pycache__/
 *.py[cod]

@@ -1,4 +1,7 @@
 import argparse
+import csv
+import json
+from datetime import datetime
 from pathlib import Path
 
 import torch
@@ -19,6 +22,7 @@ from src.training.optimizer import create_optimizer
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+EXPERIMENT_ROOT = PROJECT_ROOT / "experiments" / "scratch"
 CSV_PATH = PROJECT_ROOT / "data" / "splits" / "group_split.csv"
 
 
@@ -41,7 +45,7 @@ def parse_args():
     parser.add_argument(
         "--weight_decay",
         type=float,
-        default=0.0
+        default=1e-4
     )
 
     parser.add_argument(
@@ -57,6 +61,122 @@ def parse_args():
     )
 
     return parser.parse_args()
+
+
+def create_experiment_dir():
+    EXPERIMENT_ROOT.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    existing_numbers = []
+
+    for path in EXPERIMENT_ROOT.iterdir():
+        if path.is_dir() and path.name.startswith("exp_"):
+            try:
+                number = int(path.name.split("_")[1])
+                existing_numbers.append(number)
+            except ValueError:
+                pass
+
+    if existing_numbers:
+        experiment_number = max(existing_numbers) + 1
+    else:
+        experiment_number = 1
+
+    experiment_dir = (
+        EXPERIMENT_ROOT
+        / f"exp_{experiment_number:03d}"
+    )
+
+    experiment_dir.mkdir()
+
+    return experiment_dir
+
+
+def save_config(
+    experiment_dir,
+    args
+):
+    config = {
+        "model": "resnet50_scratch",
+        "optimizer": args.optimizer,
+        "learning_rate": args.lr,
+        "weight_decay": args.weight_decay,
+        "batch_size": args.batch_size,
+        "epochs": args.epochs,
+        "loss": "CrossEntropyLoss",
+        "num_classes": 2,
+        "positive_class": "PNEUMONIA",
+        "created_at": datetime.now().isoformat()
+    }
+
+    config_path = experiment_dir / "config.json"
+
+    with open(
+        config_path,
+        "w",
+        encoding="utf-8"
+    ) as file:
+        json.dump(
+            config,
+            file,
+            indent=4,
+            ensure_ascii=False
+        )
+
+
+def initialize_history_file(
+    experiment_dir
+):
+    history_path = experiment_dir / "history.csv"
+
+    with open(
+        history_path,
+        "w",
+        newline="",
+        encoding="utf-8"
+    ) as file:
+        writer = csv.writer(file)
+
+        writer.writerow([
+            "epoch",
+            "train_loss",
+            "val_loss",
+            "accuracy",
+            "recall",
+            "precision",
+            "f1",
+            "auroc"
+        ])
+
+    return history_path
+
+
+def save_epoch_result(
+    history_path,
+    epoch,
+    train_loss,
+    val_metrics
+):
+    with open(
+        history_path,
+        "a",
+        newline="",
+        encoding="utf-8"
+    ) as file:
+        writer = csv.writer(file)
+
+        writer.writerow([
+            epoch,
+            train_loss,
+            val_metrics["loss"],
+            val_metrics["accuracy"],
+            val_metrics["recall"],
+            val_metrics["precision"],
+            val_metrics["f1"],
+            val_metrics["auroc"]
+        ])
 
 
 def train_one_epoch(
@@ -78,15 +198,24 @@ def train_one_epoch(
 
         outputs = model(images)
 
-        loss = criterion(outputs, labels)
+        loss = criterion(
+            outputs,
+            labels
+        )
 
         loss.backward()
 
         optimizer.step()
 
-        running_loss += loss.item() * images.size(0)
+        running_loss += (
+            loss.item()
+            * images.size(0)
+        )
 
-    epoch_loss = running_loss / len(dataloader.dataset)
+    epoch_loss = (
+        running_loss
+        / len(dataloader.dataset)
+    )
 
     return epoch_loss
 
@@ -113,19 +242,42 @@ def validate(
 
             outputs = model(images)
 
-            loss = criterion(outputs, labels)
+            loss = criterion(
+                outputs,
+                labels
+            )
 
-            running_loss += loss.item() * images.size(0)
+            running_loss += (
+                loss.item()
+                * images.size(0)
+            )
 
-            probabilities = torch.softmax(outputs, dim=1)[:, 1]
+            probabilities = torch.softmax(
+                outputs,
+                dim=1
+            )[:, 1]
 
-            predictions = torch.argmax(outputs, dim=1)
+            predictions = torch.argmax(
+                outputs,
+                dim=1
+            )
 
-            all_labels.extend(labels.cpu().numpy())
-            all_preds.extend(predictions.cpu().numpy())
-            all_probs.extend(probabilities.cpu().numpy())
+            all_labels.extend(
+                labels.cpu().numpy()
+            )
 
-    val_loss = running_loss / len(dataloader.dataset)
+            all_preds.extend(
+                predictions.cpu().numpy()
+            )
+
+            all_probs.extend(
+                probabilities.cpu().numpy()
+            )
+
+    val_loss = (
+        running_loss
+        / len(dataloader.dataset)
+    )
 
     accuracy = accuracy_score(
         all_labels,
@@ -175,18 +327,29 @@ def validate(
 def main():
     args = parse_args()
 
-    device = torch.device(
-        "cuda" if torch.cuda.is_available() else "cpu"
+    experiment_dir = create_experiment_dir()
+
+    save_config(
+        experiment_dir=experiment_dir,
+        args=args
     )
 
-    # DataLoader
+    history_path = initialize_history_file(
+        experiment_dir=experiment_dir
+    )
+
+    device = torch.device(
+        "cuda"
+        if torch.cuda.is_available()
+        else "cpu"
+    )
+
     train_loader, val_loader, test_loader = create_dataloaders(
         csv_path=CSV_PATH,
         project_root=PROJECT_ROOT,
         batch_size=args.batch_size
     )
 
-    # Scratch ResNet-50
     model = create_resnet50_scratch(
         num_classes=2
     )
@@ -206,6 +369,8 @@ def main():
     print("Scratch ResNet-50 Training")
     print("=" * 50)
 
+    print(f"Experiment   : {experiment_dir.name}")
+    print(f"Save Path    : {experiment_dir}")
     print(f"Device       : {device}")
     print(f"Optimizer    : {args.optimizer}")
     print(f"Learning Rate: {args.lr}")
@@ -215,11 +380,24 @@ def main():
 
     print()
 
-    print(f"Train samples: {len(train_loader.dataset)}")
-    print(f"Val samples  : {len(val_loader.dataset)}")
-    print(f"Test samples : {len(test_loader.dataset)}")
+    print(
+        f"Train samples: "
+        f"{len(train_loader.dataset)}"
+    )
+
+    print(
+        f"Val samples  : "
+        f"{len(val_loader.dataset)}"
+    )
+
+    print(
+        f"Test samples : "
+        f"{len(test_loader.dataset)}"
+    )
 
     print("=" * 50)
+
+    best_f1 = -1.0
 
     for epoch in range(args.epochs):
 
@@ -238,40 +416,72 @@ def main():
             device=device
         )
 
+        save_epoch_result(
+            history_path=history_path,
+            epoch=epoch + 1,
+            train_loss=train_loss,
+            val_metrics=val_metrics
+        )
+
+        if val_metrics["f1"] > best_f1:
+            best_f1 = val_metrics["f1"]
+
+            torch.save(
+                model.state_dict(),
+                experiment_dir / "best_model.pth"
+            )
+
         print(
-            f"\nEpoch [{epoch + 1}/{args.epochs}]"
+            f"\nEpoch "
+            f"[{epoch + 1}/{args.epochs}]"
         )
 
         print(
-            f"Train Loss : {train_loss:.4f}"
+            f"Train Loss : "
+            f"{train_loss:.4f}"
         )
 
         print(
-            f"Val Loss   : {val_metrics['loss']:.4f}"
+            f"Val Loss   : "
+            f"{val_metrics['loss']:.4f}"
         )
 
         print(
-            f"Accuracy   : {val_metrics['accuracy']:.4f}"
+            f"Accuracy   : "
+            f"{val_metrics['accuracy']:.4f}"
         )
 
         print(
-            f"Recall     : {val_metrics['recall']:.4f}"
+            f"Recall     : "
+            f"{val_metrics['recall']:.4f}"
         )
 
         print(
-            f"Precision  : {val_metrics['precision']:.4f}"
+            f"Precision  : "
+            f"{val_metrics['precision']:.4f}"
         )
 
         print(
-            f"F1-score   : {val_metrics['f1']:.4f}"
+            f"F1-score   : "
+            f"{val_metrics['f1']:.4f}"
         )
 
         print(
-            f"AUROC      : {val_metrics['auroc']:.4f}"
+            f"AUROC      : "
+            f"{val_metrics['auroc']:.4f}"
         )
 
         print("Confusion Matrix:")
-        print(val_metrics["confusion_matrix"])
+        print(
+            val_metrics[
+                "confusion_matrix"
+            ]
+        )
+
+        print(
+            f"Best Val F1: "
+            f"{best_f1:.4f}"
+        )
 
 
 if __name__ == "__main__":
