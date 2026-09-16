@@ -191,8 +191,8 @@ def train_one_epoch(
     running_loss = 0.0
 
     for images, labels in dataloader:
-        images = images.to(device)
-        labels = labels.to(device)
+        images = images.to(device, non_blocking=True)
+        labels = labels.to(device, non_blocking=True)
 
         optimizer.zero_grad()
 

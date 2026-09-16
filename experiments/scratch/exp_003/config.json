@@ -1,0 +1,12 @@
+{
+    "model": "resnet50_scratch",
+    "optimizer": "adamw",
+    "learning_rate": 0.0005,
+    "weight_decay": 0.0001,
+    "batch_size": 32,
+    "epochs": 100,
+    "loss": "CrossEntropyLoss",
+    "num_classes": 2,
+    "positive_class": "PNEUMONIA",
+    "created_at": "2026-09-16T22:15:55.903914"
+}
