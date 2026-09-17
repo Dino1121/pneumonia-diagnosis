@@ -12,6 +12,10 @@ models/*
 # Experiment checkpoints
 experiments/**/*.pth
 
+# Hard Sample
+data/audit/hard_samples/
+data/audit/hard_samples_5plus/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -30,3 +34,4 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
