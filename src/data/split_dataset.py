@@ -5,7 +5,6 @@ import pandas as pd
 from sklearn.model_selection import StratifiedGroupKFold
 
 
-# 프로젝트 경로 설정
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data" / "raw" / "chest_xray"
 OUTPUT_DIR = PROJECT_ROOT / "data" / "splits"
@@ -13,8 +12,11 @@ OUTPUT_PATH = OUTPUT_DIR / "group_split.csv"
 
 RANDOM_STATE = 42
 
+EXCLUDED_DUPLICATES = {
+    "NORMAL2-IM-0095-0001.jpeg",
+}
 
-# 파일명에서 group_id 추출
+
 def get_group_id(filename: str, label: str):
 
     if label == "PNEUMONIA":
@@ -32,10 +34,10 @@ def get_group_id(filename: str, label: str):
     return f"{label}_{match.group(1).upper()}"
 
 
-# 기존 train, val, test의 모든 이미지를 하나의 DataFrame으로 생성
 def build_dataframe():
 
     records = []
+    excluded = []
 
     for original_split in ["train", "val", "test"]:
 
@@ -48,6 +50,10 @@ def build_dataframe():
                 if filepath.suffix.lower() not in [".jpg", ".jpeg", ".png"]:
                     continue
 
+                if filepath.name in EXCLUDED_DUPLICATES:
+                    excluded.append(filepath)
+                    continue
+
                 group_id = get_group_id(filepath.name, label)
 
                 records.append({
@@ -57,10 +63,14 @@ def build_dataframe():
                     "original_split": original_split
                 })
 
+    print(f"Excluded duplicate images: {len(excluded)}")
+
+    for filepath in excluded:
+        print(f"  - {filepath.relative_to(PROJECT_ROOT).as_posix()}")
+
     return pd.DataFrame(records)
 
 
-# group과 클래스 비율을 고려하여 데이터를 10개 fold로 분할
 def create_group_split(df):
 
     sgkf = StratifiedGroupKFold(
@@ -81,7 +91,6 @@ def create_group_split(df):
     ):
         df.loc[fold_idx, "fold"] = fold
 
-    # fold 0~7은 train, 8은 val, 9는 test로 사용
     df["split"] = "train"
     df.loc[df["fold"] == 8, "split"] = "val"
     df.loc[df["fold"] == 9, "split"] = "test"
@@ -89,7 +98,6 @@ def create_group_split(df):
     return df
 
 
-# 분할 결과와 group leakage 여부 확인
 def validate_split(df):
 
     print("\nDataset Summary")
@@ -117,12 +125,10 @@ def validate_split(df):
         print("Class ratio")
         print(split_df["label"].value_counts(normalize=True))
 
-    # 각 split에 포함된 group 목록 생성
     train_groups = set(df[df["split"] == "train"]["group_id"])
     val_groups = set(df[df["split"] == "val"]["group_id"])
     test_groups = set(df[df["split"] == "test"]["group_id"])
 
-    # 서로 다른 split 사이에 같은 group이 존재하는지 확인
     train_val_overlap = train_groups & val_groups
     train_test_overlap = train_groups & test_groups
     val_test_overlap = val_groups & test_groups
@@ -140,7 +146,6 @@ def validate_split(df):
     print("Group leakage 없음.")
 
 
-# 데이터 분석, 분할, 검증 후 CSV 저장
 def main():
 
     print("Dataset scanning...")
@@ -157,7 +162,6 @@ def main():
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 최종 CSV에는 학습에 필요한 정보만 저장
     output_df = df[
         [
             "filepath",
