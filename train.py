@@ -4,6 +4,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+import random
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -24,6 +26,18 @@ from src.training.optimizer import create_optimizer
 PROJECT_ROOT = Path(__file__).resolve().parent
 EXPERIMENT_ROOT = PROJECT_ROOT / "experiments" / "scratch"
 CSV_PATH = PROJECT_ROOT / "data" / "splits" / "group_split.csv"
+
+
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def parse_args():
@@ -108,6 +122,7 @@ def save_config(
         "loss": "CrossEntropyLoss",
         "num_classes": 2,
         "positive_class": "PNEUMONIA",
+        "seed": 42,
         "created_at": datetime.now().isoformat()
     }
 
@@ -153,6 +168,31 @@ def initialize_history_file(
     return history_path
 
 
+def initialize_val_predictions_file(
+    experiment_dir
+):
+    predictions_path = experiment_dir / "val_predictions.csv"
+
+    with open(
+        predictions_path,
+        "w",
+        newline="",
+        encoding="utf-8"
+    ) as file:
+        writer = csv.writer(file)
+
+        writer.writerow([
+            "epoch",
+            "filename",
+            "true_label",
+            "pred_label",
+            "p_pneumonia",
+            "loss"
+        ])
+
+    return predictions_path
+
+
 def save_epoch_result(
     history_path,
     epoch,
@@ -179,6 +219,30 @@ def save_epoch_result(
         ])
 
 
+def save_val_predictions(
+    predictions_path,
+    epoch,
+    sample_results
+):
+    with open(
+        predictions_path,
+        "a",
+        newline="",
+        encoding="utf-8"
+    ) as file:
+        writer = csv.writer(file)
+
+        for result in sample_results:
+            writer.writerow([
+                epoch,
+                result["filename"],
+                result["true_label"],
+                result["pred_label"],
+                result["p_pneumonia"],
+                result["loss"]
+            ])
+
+
 def train_one_epoch(
     model,
     dataloader,
@@ -191,8 +255,15 @@ def train_one_epoch(
     running_loss = 0.0
 
     for images, labels in dataloader:
-        images = images.to(device, non_blocking=True)
-        labels = labels.to(device, non_blocking=True)
+        images = images.to(
+            device,
+            non_blocking=True
+        )
+
+        labels = labels.to(
+            device,
+            non_blocking=True
+        )
 
         optimizer.zero_grad()
 
@@ -234,15 +305,34 @@ def validate(
     all_preds = []
     all_probs = []
 
+    all_filenames = []
+    all_sample_losses = []
+
+    sample_criterion = nn.CrossEntropyLoss(
+        reduction="none"
+    )
+
     with torch.no_grad():
 
-        for images, labels in dataloader:
-            images = images.to(device)
-            labels = labels.to(device)
+        for images, labels, filenames in dataloader:
+            images = images.to(
+                device,
+                non_blocking=True
+            )
+
+            labels = labels.to(
+                device,
+                non_blocking=True
+            )
 
             outputs = model(images)
 
             loss = criterion(
+                outputs,
+                labels
+            )
+
+            sample_losses = sample_criterion(
                 outputs,
                 labels
             )
@@ -272,6 +362,14 @@ def validate(
 
             all_probs.extend(
                 probabilities.cpu().numpy()
+            )
+
+            all_filenames.extend(
+                filenames
+            )
+
+            all_sample_losses.extend(
+                sample_losses.cpu().numpy()
             )
 
     val_loss = (
@@ -313,6 +411,29 @@ def validate(
         all_preds
     )
 
+    sample_results = []
+
+    for (
+        filename,
+        true_label,
+        pred_label,
+        probability,
+        sample_loss
+    ) in zip(
+        all_filenames,
+        all_labels,
+        all_preds,
+        all_probs,
+        all_sample_losses
+    ):
+        sample_results.append({
+            "filename": filename,
+            "true_label": int(true_label),
+            "pred_label": int(pred_label),
+            "p_pneumonia": float(probability),
+            "loss": float(sample_loss)
+        })
+
     return {
         "loss": val_loss,
         "accuracy": accuracy,
@@ -321,11 +442,14 @@ def validate(
         "f1": f1,
         "auroc": auroc,
         "confusion_matrix": cm,
+        "sample_results": sample_results
     }
 
 
 def main():
     args = parse_args()
+
+    set_seed(42)
 
     experiment_dir = create_experiment_dir()
 
@@ -335,6 +459,10 @@ def main():
     )
 
     history_path = initialize_history_file(
+        experiment_dir=experiment_dir
+    )
+
+    predictions_path = initialize_val_predictions_file(
         experiment_dir=experiment_dir
     )
 
@@ -421,6 +549,12 @@ def main():
             epoch=epoch + 1,
             train_loss=train_loss,
             val_metrics=val_metrics
+        )
+
+        save_val_predictions(
+            predictions_path=predictions_path,
+            epoch=epoch + 1,
+            sample_results=val_metrics["sample_results"]
         )
 
         if val_metrics["f1"] > best_f1:

@@ -13,7 +13,7 @@ def create_dataloaders(
     csv_path,
     project_root,
     batch_size=32,
-    num_workers=4
+    num_workers=0
 ):
     """
     Train / Validation / Test DataLoader 생성
@@ -35,7 +35,8 @@ def create_dataloaders(
         csv_path=csv_path,
         split="val",
         transform=eval_transform,
-        project_root=project_root
+        project_root=project_root,
+        return_filename=True
     )
 
     test_dataset = ChestXrayDataset(
@@ -52,7 +53,7 @@ def create_dataloaders(
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
-        persistent_workers = num_workers > 0
+        persistent_workers = False
     )   
 
     val_loader = DataLoader(
@@ -61,7 +62,7 @@ def create_dataloaders(
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
-        persistent_workers = num_workers > 0
+        persistent_workers = False
     )
 
     test_loader = DataLoader(
@@ -70,7 +71,7 @@ def create_dataloaders(
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
-        persistent_workers = num_workers > 0
+        persistent_workers = False
     )
 
     return train_loader, val_loader, test_loader

@@ -11,11 +11,13 @@ class ChestXrayDataset(Dataset):
         csv_path,
         split,
         transform=None,
-        project_root=None
+        project_root=None,
+        return_filename=False
     ):
         self.csv_path = Path(csv_path)
         self.split = split
         self.transform = transform
+        self.return_filename = return_filename
 
         if project_root is None:
             self.project_root = Path.cwd()
@@ -24,7 +26,6 @@ class ChestXrayDataset(Dataset):
 
         df = pd.read_csv(self.csv_path)
 
-        # train / val / test 중 원하는 split만 선택
         self.data = df[df["split"] == split].reset_index(drop=True)
 
         self.label_map = {
@@ -44,10 +45,12 @@ class ChestXrayDataset(Dataset):
 
         image = Image.open(image_path)
 
-        # NORMAL → 0, PNEUMONIA → 1
         label = self.label_map[row["label"]]
-        
+
         if self.transform is not None:
             image = self.transform(image)
+
+        if self.return_filename:
+            return image, label, image_path.name
 
         return image, label
