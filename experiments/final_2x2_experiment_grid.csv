@@ -1,0 +1,9 @@
+model,learning_rate,weight_decay,experiment,status
+Scratch,0.0001,0.001,exp_008,completed
+Scratch,0.0001,0.01,,pending
+Scratch,0.00005,0.001,,pending
+Scratch,0.00005,0.01,,pending
+Transfer,0.0001,0.001,exp_002,completed
+Transfer,0.0001,0.01,exp_003,completed
+Transfer,0.00005,0.001,,pending
+Transfer,0.00005,0.01,exp_004,completed
