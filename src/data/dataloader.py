@@ -13,7 +13,7 @@ def create_dataloaders(
     csv_path,
     project_root,
     batch_size=32,
-    num_workers=0
+    num_workers=1
 ):
     """
     Train / Validation / Test DataLoader 생성
@@ -53,7 +53,7 @@ def create_dataloaders(
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
-        persistent_workers = False
+        persistent_workers = True
     )   
 
     val_loader = DataLoader(
@@ -62,7 +62,7 @@ def create_dataloaders(
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
-        persistent_workers = False
+        persistent_workers = True
     )
 
     test_loader = DataLoader(
@@ -71,7 +71,7 @@ def create_dataloaders(
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
-        persistent_workers = False
+        persistent_workers = True
     )
 
     return train_loader, val_loader, test_loader

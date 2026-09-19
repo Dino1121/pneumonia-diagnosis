@@ -1,0 +1,19 @@
+{
+    "architecture": "resnet50",
+    "model_type": "transfer",
+    "pretrained_weights": "IMAGENET1K_V2",
+    "transfer_pilot": true,
+    "training_phase": "fc_only",
+    "backbone_frozen": true,
+    "optimizer": "adamw",
+    "learning_rate": 0.001,
+    "weight_decay": 0.001,
+    "batch_size": 32,
+    "epochs": 20,
+    "loss": "CrossEntropyLoss",
+    "num_classes": 2,
+    "positive_class": "PNEUMONIA",
+    "seed": 42,
+    "scheduler": "none",
+    "created_at": "2026-09-19T14:43:01.616169"
+}

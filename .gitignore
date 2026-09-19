@@ -10,7 +10,7 @@ models/*
 !models/.gitkeep
 
 # Experiment checkpoints
-experiments/**/*.pth
+*.pth
 
 # Hard Sample
 data/audit/hard_samples/

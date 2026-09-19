@@ -1,16 +1,16 @@
 import torch.nn as nn
-from torchvision.models import resnet50
+from torchvision.models import resnet50, ResNet50_Weights
 
 
-def create_resnet50_scratch(num_classes=2):
-    """
-    ResNet-50 Scratch 모델 생성
+def create_resnet50(model_type="scratch", num_classes=2):
+    if model_type == "scratch":
+        model = resnet50(weights=None)
 
-    - ImageNet pretrained weight 사용 X
-    - 마지막 FC layer를 num_classes에 맞게 변경
-    """
+    elif model_type == "transfer":
+        model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
 
-    model = resnet50(weights=None)
+    else:
+        raise ValueError(f"Unsupported model type: {model_type}")
 
     in_features = model.fc.in_features
     model.fc = nn.Linear(in_features, num_classes)

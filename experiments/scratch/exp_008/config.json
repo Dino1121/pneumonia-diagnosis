@@ -1,0 +1,19 @@
+{
+    "model": "resnet50_scratch",
+    "optimizer": "adamw",
+    "learning_rate": 0.0001,
+    "weight_decay": 0.001,
+    "batch_size": 32,
+    "epochs": 100,
+    "loss": "CrossEntropyLoss",
+    "num_classes": 2,
+    "positive_class": "PNEUMONIA",
+    "seed": 42,
+    "scheduler": "plateau",
+    "created_at": "2026-09-19T13:32:39.971014",
+    "scheduler_monitor": "val_loss",
+    "scheduler_mode": "min",
+    "scheduler_factor": 0.1,
+    "scheduler_patience": 10,
+    "scheduler_min_lr": 1e-06
+}
