@@ -281,80 +281,144 @@ Distance 0 후보가 더 이상 존재하지 않았다.
 
 ## 11. Audit 이후 Scratch 재실험
 
-데이터 leakage가 높은 Scratch 성능의 원인일 가능성을 확인하기 위해
-정리된 새로운 split으로 Scratch ResNet-50을 다시 학습했다.
+확인된 cross-split duplicate를 제거하고 새롭게 생성한 Clean Split에서도 높은 Scratch 성능이 유지되는지 확인하기 위해 ResNet-50을 다시 학습했다.
 
-그러나 데이터 정리 이후에도 Validation F1-score가
-약 98% 후반까지 도달하였다.
+Clean Split 기반 재학습에서도 Validation F1-score는 약 98% 후반까지 도달했다.
 
-따라서 처음 발견된 duplicate 한 장만으로
-기존의 높은 Validation 성능을 설명하기는 어렵다고 판단했다.
+또한 특정 random initialization에 의해 우연히 높은 성능이 나타났을 가능성을 확인하기 위해 Python, NumPy, PyTorch 및 CUDA의 random seed를 42로 고정하고 동일한 조건에서 추가 실험을 수행했다.
 
-이는 높은 성능 자체가 반드시 leakage를 의미하지는 않는다는 점을 보여주지만,
-동시에 현재 데이터셋에서 모델이 실제 폐렴 병변을 학습한 것인지
-다른 shortcut feature를 이용하고 있는지는 별도의 검증이 필요하다.
+Seed 고정 이후에도 높은 Validation 성능이 다시 관찰되었다.
+
+따라서 처음 발견된 cross-split duplicate 한 장이 초기 Scratch 모델의 높은 Validation 성능을 설명하는 주된 원인일 가능성은 낮다고 판단했다.
+
+다만 높은 Validation 성능과 별개로 일부 epoch에서 Validation Loss와 class prediction이 크게 변하는 현상이 관찰되었다.
+
+이에 따라 Validation sample별 prediction과 loss를 추가로 기록하여 분석한 결과, 특정 epoch에서 다수 sample의 class prediction이 동시에 변화하는 prediction instability가 존재함을 확인했다.
+
+이후 Learning Rate 조정, adaptive learning rate 및 regularization 실험을 통해 Scratch 모델의 학습 안정성을 별도로 분석하였다.
+
+이러한 결과는 현재 Clean Split에서 높은 Validation 성능이 재현되고 있음을 보여주지만, 모델이 실제 pathology-related feature를 학습했는지 또는 dataset-specific shortcut feature를 활용하고 있는지는 별도의 검증이 필요하다.
 
 
 ## 12. 현재 판단
 
 현재까지 다음 항목을 확인하였다.
 
-- Filename-derived group 기준 split overlap 없음
-- SHA 기반 cross-split exact duplicate 없음
-- pHash distance 0 cross-split candidate 없음
-- pHash distance 2/4 후보 시각적 검사
-- 확인된 duplicate 한 장 제거 후 데이터 재분할
-- 정리된 split에서도 높은 Scratch 성능 재현
+- Filename-derived group 기준 Train / Validation / Test overlap 없음
+- SHA-256 기반 cross-split exact duplicate audit 수행
+- 발견된 cross-split exact duplicate 1건 처리
+- Duplicate 제거 후 전체 split 재생성
+- 재생성된 Clean Split에서 SHA-256 기준 cross-split exact duplicate 없음
+- pHash 기반 cross-split near-duplicate candidate 탐색
+- pHash Hamming Distance 2/4 후보 시각적 검사
+- 현재 Clean Split에서 pHash Distance 0 cross-split candidate 없음
+- Clean Split에서도 높은 Scratch Validation 성능 재현
+- Random seed 고정 이후에도 높은 Scratch Validation 성능 재현
 
-따라서 현재까지 확인 가능한
-명백한 duplicate-image leakage는 발견되지 않았다.
+따라서 초기 audit에서 실제 cross-split duplicate 한 쌍이 발견되었지만, 이를 제거하고 split을 재생성한 현재 Clean Split에서는 확인 가능한 group leakage 및 duplicate-image leakage가 추가로 발견되지 않았다.
 
-다만 이것이 모든 형태의 data leakage가 존재하지 않는다는 것을
-증명하는 것은 아니다.
+또한 duplicate 제거 이후에도 높은 Scratch Validation 성능이 재현되었기 때문에, 발견된 duplicate가 초기 높은 성능의 주된 원인은 아닌 것으로 판단한다.
+
+그러나 현재 결과가 모든 형태의 data leakage 가능성을 배제한다는 의미는 아니다.
+
+특히 filename-derived group ID는 공식 patient metadata가 아니기 때문에 실제 patient-level independence를 완전히 검증할 수 없다.
 
 
 ## 13. 남아 있는 한계
 
-현재 grouping은 공식 patient metadata가 아니라
-filename에서 추출한 identifier에 의존한다.
+### 13.1 Patient-level Identity
 
-따라서 실제 patient identity를 완전히 검증할 수 없다.
+현재 grouping은 공식 patient metadata가 아니라 filename에서 추출한 identifier에 의존한다.
 
-또한 모델이 다음과 같은 shortcut feature를 사용할 가능성이 존재한다.
+따라서 동일한 filename-derived group이 여러 split에 포함되지 않는 것은 확인했지만, 서로 다른 group ID가 실제로 서로 다른 환자를 의미하는지는 검증할 수 없다.
+
+즉 현재 방법은 patient-level leakage의 위험을 줄이기 위한 방법이지만, 공식 patient identifier를 이용한 분할과 동일한 수준의 보장을 제공하지 않는다.
+
+
+### 13.2 Perceptual Hash의 한계
+
+pHash는 이미지의 의미적 동일성을 직접 판단하는 방법이 아니다.
+
+Chest X-ray처럼 전체적인 구조가 유사한 영상에서는 서로 다른 이미지도 작은 Hamming distance를 가질 수 있다.
+
+따라서 본 프로젝트에서는 pHash를 duplicate 판정 기준으로 직접 사용하지 않고 near-duplicate candidate를 탐색하기 위한 screening 방법으로 사용했으며, 탐지된 후보는 직접 시각적으로 검수했다.
+
+
+### 13.3 Shortcut Learning 가능성
+
+높은 Validation 성능이 데이터 누수에 의해 발생하지 않았더라도 모델이 실제 폐렴 관련 특징 대신 dataset-specific shortcut을 학습했을 가능성은 남아 있다.
+
+예를 들어 다음과 같은 특징이 모델 예측에 영향을 줄 가능성이 있다.
 
 - Radiographic markers
 - Text
 - Image borders
 - Acquisition/device-related artifacts
-- Resolution 또는 padding과 관련된 특징
+- Crop 및 positioning 차이
+- Resolution 차이
 - Dataset-specific visual patterns
 
-향후 Grad-CAM++ 등을 이용하여 모델이 실제 lung region과
-pathology-related feature에 집중하는지 확인할 필요가 있다.
-
-외부 Pediatric Chest X-ray 데이터셋을 이용한 external validation 역시
-현재 데이터셋에 특화된 특징을 학습했는지 평가하는 데 중요한 후속 실험이 될 수 있다.
+따라서 높은 Validation 성능만으로 모델이 실제 pathology-related feature를 학습했다고 결론 내리지 않는다.
 
 
-## 14. 결론
+### 13.4 Internal Validation의 한계
 
-초기 Scratch 모델에서 예상보다 높은 Validation 성능이 관찰되어
-data leakage 가능성을 의심하였다.
+현재 성능 분석은 동일한 원본 데이터셋에서 생성한 Train / Validation split을 기반으로 한다.
 
-이에 따라 group-aware split 검증,
-SHA exact duplicate audit,
-pHash near-duplicate audit,
-시각적 검증을 순차적으로 수행하였다.
+따라서 현재 Clean Split에서 높은 성능이 재현되더라도 다른 병원, 장비, 환자 집단 또는 촬영 환경에서도 동일한 성능이 유지된다고 판단할 수 없다.
 
-실제 duplicate 한 쌍을 발견하여 한 장을 split에서 제외하고
-전체 데이터를 다시 분할하였다.
+향후 보다 강한 일반화 성능 검증을 위해 외부 Chest X-ray dataset을 이용한 external validation 및 domain shift 평가를 고려할 수 있다.
 
-재검증 결과 SHA 기준 cross-split exact duplicate와
-pHash distance 0 후보는 발견되지 않았다.
 
-그럼에도 Scratch 모델의 높은 Validation 성능이 유지되었기 때문에,
-현재까지 발견된 duplicate가 높은 성능의 주된 원인은 아닌 것으로 판단한다.
+## 14. 이후 검증 계획
 
-향후에는 반복 실험, Transfer Learning 비교,
-Grad-CAM++ 기반 설명 가능성 분석 및 필요시 외부 데이터 검증을 통해
-모델의 일반화 성능과 학습 특성을 추가적으로 분석할 예정이다.
+Data Integrity Audit 이후에는 데이터 누수 여부와 별개로 모델의 학습 특성과 일반화 가능성을 추가로 검증한다.
+
+현재 진행 중인 주요 검증은 다음과 같다.
+
+### Scratch vs Transfer Learning
+
+동일한 ResNet-50 architecture와 Clean Split을 사용하여 Scratch 학습과 ImageNet pretrained Transfer Learning의 분류 성능 및 수렴 특성을 비교한다.
+
+이를 통해 현재 데이터셋에서 높은 Scratch 성능이 관찰되는 상황에서도 pretrained representation이 추가적인 성능 또는 수렴상의 이점을 제공하는지 분석한다.
+
+
+### Grad-CAM++
+
+최종 모델에는 Grad-CAM++을 적용하여 예측 과정에서 모델이 주목하는 영역을 시각화할 예정이다.
+
+특히 모델이 실제 lung region 및 pathology-related region에 집중하는지, 또는 marker, border 및 기타 비의도적 특징에 의존하는지를 분석한다.
+
+Grad-CAM++ 결과는 모델의 판단 근거에 대한 정성적 분석으로 사용하며, 그 자체를 모델의 임상적 타당성을 증명하는 근거로 해석하지 않는다.
+
+
+### Final Test Evaluation
+
+모델 및 학습 설정이 확정될 때까지 Test set은 모델 선택이나 hyperparameter 조정에 사용하지 않는다.
+
+Scratch와 Transfer Learning 비교 및 최종 모델 선택이 완료된 이후 독립적으로 유지한 Test set에서 최종 성능을 평가한다.
+
+
+## 15. 결론
+
+초기 Scratch ResNet-50에서 예상보다 높은 Validation 성능이 관찰되어 data leakage 가능성을 우선적으로 검증하였다.
+
+이를 위해 filename-derived group 기반 split 검증, SHA-256 exact duplicate audit, pHash near-duplicate screening 및 후보 이미지의 시각적 검수를 수행했다.
+
+초기 split에서 서로 다른 filename-derived group에 속하지만 실제로 동일한 cross-split 이미지 한 쌍을 발견하였다.
+
+이에 따라 원본 데이터는 그대로 보존하면서 중복본 한 장을 실험 대상에서 제외하고 전체 dataset split을 다시 생성하였다.
+
+재생성된 Clean Split에서는 다음을 확인했다.
+
+- Filename-derived group overlap 0
+- SHA-256 기준 cross-split exact duplicate 0
+- pHash Distance 0 cross-split candidate 0
+
+또한 Clean Split 및 seed 고정 조건에서도 높은 Scratch Validation 성능이 재현되었다.
+
+따라서 현재까지 확인된 결과에서는 발견된 cross-split duplicate가 초기 높은 Validation 성능의 주된 원인이었다고 보기 어렵다.
+
+그러나 현재 grouping은 공식 patient metadata에 기반하지 않으며, duplicate audit만으로 모든 형태의 leakage 또는 shortcut learning 가능성을 배제할 수 없다.
+
+따라서 현재 결과를 실제 임상 환경에서의 일반화 성능으로 해석하지 않으며, 이후 Scratch vs Transfer Learning 비교, 독립 Test evaluation, Grad-CAM++ 분석 및 필요시 external validation을 통해 모델의 학습 특성과 일반화 가능성을 추가적으로 검증할 예정이다.
