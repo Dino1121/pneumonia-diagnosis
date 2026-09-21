@@ -1,0 +1,3 @@
+model,experiment,best_val_f1,best_f1_epoch,t95_epoch,t97_epoch,t99_epoch
+Scratch,Scratch exp_008,0.988399071925754,68,4,12,51
+Transfer,Transfer exp_003,0.991869918699187,18,5,9,12

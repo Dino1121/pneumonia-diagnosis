@@ -1,0 +1,37 @@
+{
+  "experiment": "Scratch exp_008",
+  "history": "experiments\\scratch\\exp_008\\history.csv",
+  "total_epochs": 100,
+  "best_validation_f1": 0.988399071925754,
+  "best_f1_epoch": 68,
+  "convergence_rule": {
+    "window_size": 10,
+    "required_count": 8
+  },
+  "convergence": {
+    "T95": {
+      "ratio": 0.95,
+      "threshold": 0.9389791183294663,
+      "epoch": 4,
+      "window_start": 4,
+      "window_end": 13,
+      "maintained_count": 9
+    },
+    "T97": {
+      "ratio": 0.97,
+      "threshold": 0.9587470997679814,
+      "epoch": 12,
+      "window_start": 12,
+      "window_end": 21,
+      "maintained_count": 8
+    },
+    "T99": {
+      "ratio": 0.99,
+      "threshold": 0.9785150812064966,
+      "epoch": 51,
+      "window_start": 51,
+      "window_end": 60,
+      "maintained_count": 10
+    }
+  }
+}

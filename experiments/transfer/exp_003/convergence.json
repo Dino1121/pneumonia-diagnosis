@@ -1,0 +1,37 @@
+{
+  "experiment": "Transfer exp_003",
+  "history": "experiments\\transfer\\exp_003\\history.csv",
+  "total_epochs": 100,
+  "best_validation_f1": 0.991869918699187,
+  "best_f1_epoch": 18,
+  "convergence_rule": {
+    "window_size": 10,
+    "required_count": 8
+  },
+  "convergence": {
+    "T95": {
+      "ratio": 0.95,
+      "threshold": 0.9422764227642275,
+      "epoch": 5,
+      "window_start": 5,
+      "window_end": 14,
+      "maintained_count": 10
+    },
+    "T97": {
+      "ratio": 0.97,
+      "threshold": 0.9621138211382113,
+      "epoch": 9,
+      "window_start": 9,
+      "window_end": 18,
+      "maintained_count": 10
+    },
+    "T99": {
+      "ratio": 0.99,
+      "threshold": 0.9819512195121951,
+      "epoch": 12,
+      "window_start": 12,
+      "window_end": 21,
+      "maintained_count": 8
+    }
+  }
+}
