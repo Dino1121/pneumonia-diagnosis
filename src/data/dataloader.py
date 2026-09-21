@@ -43,7 +43,8 @@ def create_dataloaders(
         csv_path=csv_path,
         split="test",
         transform=eval_transform,
-        project_root=project_root
+        project_root=project_root,
+        return_filename=True
     )
 
     # DataLoader

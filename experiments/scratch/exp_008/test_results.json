@@ -1,0 +1,22 @@
+{
+    "model": "scratch",
+    "experiment": "exp_008",
+    "test_samples": 585,
+    "positive_class": "PNEUMONIA",
+    "loss": 0.10665202959925153,
+    "accuracy": 0.976068376068376,
+    "recall": 0.9836065573770492,
+    "precision": 0.9836065573770492,
+    "f1": 0.9836065573770492,
+    "auroc": 0.9950790027569443,
+    "confusion_matrix": [
+        [
+            151,
+            7
+        ],
+        [
+            7,
+            420
+        ]
+    ]
+}

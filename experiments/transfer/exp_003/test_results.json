@@ -1,0 +1,22 @@
+{
+    "model": "transfer",
+    "experiment": "exp_003",
+    "test_samples": 585,
+    "positive_class": "PNEUMONIA",
+    "loss": 0.0936588154731589,
+    "accuracy": 0.9606837606837607,
+    "recall": 0.9718969555035128,
+    "precision": 0.9741784037558685,
+    "f1": 0.9730363423212193,
+    "auroc": 0.9955829603059319,
+    "confusion_matrix": [
+        [
+            147,
+            11
+        ],
+        [
+            12,
+            415
+        ]
+    ]
+}

@@ -346,151 +346,37 @@ Chest X-ray처럼 전체적인 구조가 유사한 영상에서는 서로 다른
 
 ---
 
-## 14. 이후 검증 계획
+## 14. Audit Conclusion
 
-Data Integrity Audit 이후에는 데이터 누수 여부와 별개로 모델의 학습 특성과 일반화 가능성을 추가로 검증한다.
+초기 Scratch ResNet-50에서 예상보다 높은 Validation 성능이 관찰되어 data leakage 가능성을 우선적으로 검증했다.
 
-### Scratch vs Transfer Learning
+이를 위해 다음 검사를 수행했다.
 
-동일한 ResNet-50 architecture와 Clean Split을 사용하여 Scratch 학습과 ImageNet pretrained Transfer Learning의 분류 성능 및 수렴 특성을 비교한다.
+- Filename-derived group 기반 split 검증
+- SHA-256 exact duplicate audit
+- pHash near-duplicate screening
+- pHash 후보 이미지의 시각적 검수
 
-한쪽 학습 방식에 더 많은 hyperparameter tuning 기회를 제공하여 비교 결과가 편향되는 것을 줄이기 위해 Scratch와 Transfer Learning 모두 동일한 규모의 2×2 hyperparameter search space를 사용한다.
+초기 split에서는 서로 다른 filename-derived group에 속하지만 실제로 동일한 cross-split 이미지 한 쌍을 발견했다.
 
-공통 학습 조건은 다음과 같다.
-
-```text
-Architecture      : ResNet-50
-Optimizer         : AdamW
-Batch Size        : 32
-Epochs            : 100
-Seed              : 42
-Scheduler         : ReduceLROnPlateau
-Scheduler Monitor : Validation Loss
-Factor            : 0.1
-Patience          : 10
-Minimum LR        : 0.000001
-```
-
-최종 search space는 다음과 같다.
-
-```text
-Learning Rate : 0.0001, 0.00005
-Weight Decay  : 0.001, 0.01
-```
-
-Scratch는 위 Learning Rate와 Weight Decay의 조합으로 2×2 Grid를 구성한다.
-
-Transfer Learning에서는 별도의 FC-only pilot experiment 결과를 바탕으로 freeze 기간을 7 epochs로 고정한다.
-
-```text
-Epoch 1-7
-
-Backbone      : Frozen
-Classifier    : Trainable
-Freeze LR     : 0.001
-
-Epoch 8-100
-
-Entire Network : Trainable
-Fine-tune LR   : 0.0001 or 0.00005
-```
-
-Fine-tuning 단계의 Learning Rate와 Weight Decay에 대해 Scratch와 동일한 규모의 2×2 Grid를 구성한다.
-
-Freeze duration 자체는 최종 hyperparameter search의 탐색 변수에 포함하지 않으며, 7 epochs를 모든 Transfer Learning configuration에서의 최적 freeze duration으로 해석하지 않는다.
-
-각 학습 방식의 4개 configuration 중 **Best Validation F1이 가장 높은 설정**을 해당 방식의 대표 configuration으로 선택한다.
-
-대표 configuration이 결정된 이후 다음 항목을 비교한다.
-
-- Best Validation F1
-- Accuracy
-- Recall
-- Precision
-- AUROC
-- Confusion Matrix
-- Convergence Epoch
-- Validation stability
-- Train-Validation generalization gap
-
-본 비교는 각 방식의 절대적인 최대 성능을 찾기 위한 exhaustive hyperparameter optimization이 아니라, 제한된 동일 규모의 search space에서 Scratch와 Transfer Learning의 차이를 비교하는 것을 목적으로 한다.
-
-### Convergence Analysis
-
-단순히 Best Validation F1이 발생한 epoch를 수렴 시점으로 해석하지 않는다.
-
-각 대표 configuration에서 다음 threshold를 계산한다.
-
-```text
-T99 = 0.99 × Best Validation F1
-```
-
-다음 조건을 만족하는 가장 이른 epoch `t`를 Convergence Epoch으로 정의한다.
-
-```text
-F1(t) ≥ T99
-
-and
-
-Count(F1 ≥ T99 in epochs t ... t+9) ≥ 8
-```
-
-즉 Validation F1이 T99 이상에 도달한 epoch 중, 해당 epoch부터 시작하는 연속 10 epochs에서 최소 8 epochs가 T99 이상을 유지하는 가장 이른 시점을 수렴으로 판단한다.
-
-99% threshold 선택에 따른 결과 의존성을 확인하기 위해 다음 threshold도 동일하게 분석한다.
-
-```text
-T95 = 0.95 × Best Validation F1
-T97 = 0.97 × Best Validation F1
-T99 = 0.99 × Best Validation F1
-```
-
-T99를 primary convergence criterion으로 사용하고 T95와 T97은 sensitivity analysis로 사용한다.
-
-Transfer Learning에서는 FC-only phase 역시 task-specific training 과정에 포함되므로 Epoch 1부터 시작하는 **global epoch**을 기준으로 convergence를 계산한다.
-
-본 convergence criterion은 training을 중단하기 위한 early stopping rule이 아니라 전체 100-epoch training trajectory를 학습 완료 후 분석하기 위한 post-hoc metric이다.
-
-### Grad-CAM++
-
-최종 모델에는 Grad-CAM++을 적용하여 예측 과정에서 모델이 주목하는 영역을 시각화할 예정이다.
-
-특히 모델이 실제 lung region 및 pathology-related region에 집중하는지, 또는 marker, border 및 기타 비의도적 특징에 의존하는지를 분석한다.
-
-Grad-CAM++ 결과는 모델의 판단 근거에 대한 정성적 분석으로 사용하며, 그 자체를 모델의 임상적 타당성을 증명하는 근거로 해석하지 않는다.
-
-### Final Test Evaluation
-
-모델 및 학습 설정이 확정될 때까지 Test set은 모델 선택이나 hyperparameter 조정에 사용하지 않는다.
-
-Scratch와 Transfer Learning 각각의 대표 configuration이 Validation 결과를 기반으로 완전히 결정된 이후 독립적으로 유지한 Test set에서 최종 성능을 평가한다.
-
----
-
-## 15. 결론
-
-초기 Scratch ResNet-50에서 예상보다 높은 Validation 성능이 관찰되어 data leakage 가능성을 우선적으로 검증하였다.
-
-이를 위해 filename-derived group 기반 split 검증, SHA-256 exact duplicate audit, pHash near-duplicate screening 및 후보 이미지의 시각적 검수를 수행했다.
-
-초기 split에서 서로 다른 filename-derived group에 속하지만 실제로 동일한 cross-split 이미지 한 쌍을 발견하였다.
-
-이에 따라 원본 데이터는 그대로 보존하면서 중복본 한 장을 실험 대상에서 제외하고 전체 dataset split을 다시 생성하였다.
+원본 데이터는 그대로 보존하면서 중복본 한 장을 실험 대상에서 제외하고 전체 dataset split을 다시 생성했다.
 
 재생성된 Clean Split에서는 다음을 확인했다.
 
-- Filename-derived group overlap 0
-- SHA-256 기준 cross-split exact duplicate 0
-- pHash Distance 0 cross-split candidate 0
+```text
+Filename-derived group overlap       : 0
+Cross-split SHA-256 exact duplicates : 0
+Cross-split pHash Distance 0         : 0
+```
 
-또한 Clean Split 및 seed 고정 조건에서도 높은 Scratch Validation 성능이 재현되었다.
+Clean Split을 사용한 Scratch 재학습에서도 높은 Validation 성능이 다시 관찰되었으며, random seed를 42로 고정한 이후에도 이러한 경향이 유지되었다.
 
-따라서 현재까지 확인된 결과에서는 발견된 cross-split duplicate가 초기 높은 Validation 성능의 주된 원인이었다고 보기 어렵다.
+따라서 발견된 cross-split duplicate 한 쌍만으로 초기의 높은 Validation 성능을 설명하기는 어렵다고 판단했다.
 
-그러나 현재 grouping은 공식 patient metadata에 기반하지 않으며, duplicate audit만으로 모든 형태의 leakage 또는 shortcut learning 가능성을 배제할 수 없다.
+다만 본 audit 결과를 모든 형태의 data leakage가 존재하지 않는다는 증거로 해석하지 않는다.
 
-따라서 현재 결과를 실제 임상 환경에서의 일반화 성능으로 해석하지 않는다.
+특히 filename-derived group ID는 공식 patient identifier가 아니므로 실제 patient-level independence를 완전히 검증할 수 없다. 또한 duplicate audit은 dataset-specific shortcut learning 가능성을 평가하는 방법이 아니다.
 
-이후 Scratch와 Transfer Learning에 동일한 규모의 2×2 hyperparameter search space를 적용하여 대표 configuration을 선택하고, 분류 성능과 수렴 속도를 비교한다.
+따라서 본 프로젝트에서는 현재 split을 확인 가능한 cross-split group overlap 및 duplicate 문제를 줄인 **Clean Split**으로 사용하되, 실제 pathology-related feature를 학습했는지와 외부 데이터에 대한 일반화 가능성은 별도의 문제로 구분한다.
 
-최종 설정이 확정된 이후 독립 Test evaluation과 Grad-CAM++ 분석을 통해 모델의 성능 및 학습 특성을 추가적으로 검증할 예정이다.
+모델 비교 및 최종 Test evaluation 결과는 프로젝트 `README.md`에서 별도로 관리한다.
