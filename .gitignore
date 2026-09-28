@@ -35,3 +35,5 @@ env/
 .DS_Store
 Thumbs.db
 
+# Grad-CAM++ generated outputs
+results/gradcam/
