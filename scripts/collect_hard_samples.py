@@ -2,7 +2,7 @@ from pathlib import Path
 import shutil
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SEARCH_ROOT = PROJECT_ROOT / "data" / "raw" / "chest_xray"
 PREDICTIONS_CSV = PROJECT_ROOT / "experiments" / "scratch" / "exp_006" / "val_predictions.csv"
 OUTPUT_DIR = PROJECT_ROOT / "data" / "audit" / "hard_samples_5plus"

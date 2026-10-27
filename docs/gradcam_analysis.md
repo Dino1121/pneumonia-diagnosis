@@ -185,6 +185,25 @@ Category   : both_correct
 
 ## 8. Grad-CAM++ 비교 결과
 
+### 기존 실험의 비교 그림
+
+다음 세 그림은 **seed=123으로 선택한 20장 class-balanced random Test 표본 중 일부**다. 그림은 기존 Grad-CAM++ 분석 결과이며, 코드 기본 설정인 seed=42·10장 표본과 구분한다.
+
+**NORMAL — `IM-0223-0001.jpeg` (both_correct)**
+
+![입력, Scratch Grad-CAM++, Transfer Grad-CAM++](assets/gradcam/IM-0223-0001.png)
+
+**NORMAL — `IM-0209-0001.jpeg` (both_correct)**
+
+![입력, Scratch Grad-CAM++, Transfer Grad-CAM++](assets/gradcam/IM-0209-0001.png)
+
+**PNEUMONIA — `person3_virus_16.jpeg` (both_correct)**
+
+![입력, Scratch Grad-CAM++, Transfer Grad-CAM++](assets/gradcam/person3_virus_16.png)
+
+세 그림 모두 각각의 정답 class를 두 모델이 예측한 예시다. 각각 Scratch `exp_008`, Transfer `exp_003`으로 그림에 기록되어 있고, predicted-class CAM을 보여준다. 색 강도는 모델별 독립 정규화 결과이므로 직접 비교하지 않는다. 정량적 경향, 임상적 병변 위치, shortcut 사용의 인과성은 입증하지 않는다. 표본 filename, 체크포인트 SHA-256 및 실행 조건은 [Grad-CAM++ 실행 기록](assets/gradcam/README.md)에 정리했다.
+
+
 여러 Test sample을 비교한 결과, 두 모델이 동일한 정답을 예측하더라도 heatmap의 spatial pattern에는 차이가 나타났다.
 
 ### Scratch
@@ -247,6 +266,9 @@ Transfer Learning 모델은 ImageNet pretrained feature를 기반으로 학습�
 ---
 
 ## 11. 저장 결과
+
+> **Grad-CAM++ 결과 공개 범위:** 기존 실험의 비교 PNG 3개와 실행 manifest를 공개 자료로 보존한다. 실제 실행은 seed=123, 총 20개 class-balanced Test 표본을 사용했다. Scratch/Transfer 체크포인트의 SHA-256은 manifest에 기록되어 있다. 20개 표본의 예측 기록은 manifest에 보존하며, 이 문서에는 3개 사례를 시각화한다.
+
 
 Grad-CAM++ 실행 결과는 다음 위치에 저장된다.
 
@@ -319,11 +341,9 @@ Grad-CAM++는 post-hoc attribution method이다.
 
 ---
 
-## 13. 향후 정량 분석
+## 13. 미수행 정량 분석 (후속 개발 범위 아님)
 
-현재 분석은 이미지 비교를 중심으로 한다.
-
-향후 lung segmentation mask를 확보할 경우 다음과 같은 지표를 고려할 수 있다.
+본 프로젝트에서는 정성적 이미지 비교까지만 수행했다. Lung segmentation mask를 이용한 정량 분석과 padding 개입 실험은 수행하지 않았으며, 종료 후 추가 구현 계획으로 포함하지 않는다. 예컨대 다른 연구에서는 다음과 같은 지표를 검토할 수 있다.
 
 ```text
 CAM energy inside lung / total CAM energy

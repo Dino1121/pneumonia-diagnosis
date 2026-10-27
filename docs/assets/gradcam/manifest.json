@@ -1,0 +1,558 @@
+{
+  "method": "GradCAMPlusPlus",
+  "target_mode": "predicted_class",
+  "target_score": "pre-softmax logit",
+  "target_layer": "layer4[-1]",
+  "normalization": "independent per image and model, [0,1]",
+  "overlay_alpha": 0.45,
+  "colormap": "jet",
+  "device": "cuda",
+  "split": "test",
+  "csv": "data/splits/group_split.csv",
+  "csv_sha256": "f27c2ff95f82de31a04d9414a9f2da2d9bf44bca3e2255a7428840e635b2c926",
+  "selection": {
+    "filename": null,
+    "num_images": 20,
+    "seed": 123,
+    "sampling": "class-balanced random"
+  },
+  "checkpoints": [
+    {
+      "path": "experiments/scratch/exp_008/best_model.pth",
+      "sha256": "3a25b53f706500a33fb1ebe4f5029c4e3dbab5cdaa51d643ed5bbd7c11e2be42"
+    },
+    {
+      "path": "experiments/transfer/exp_003/best_model.pth",
+      "sha256": "002ca5d21f73240c15ba0454f1b91ab5b04b49902e2a4e9151377b296426b288"
+    }
+  ],
+  "versions": {
+    "torch": "2.14.0+cu126",
+    "torchvision": "0.29.0+cu126",
+    "grad-cam": "1.5.7",
+    "numpy": "2.4.6",
+    "matplotlib": "3.11.2"
+  },
+  "samples": [
+    {
+      "filepath": "data/raw/chest_xray/train/NORMAL/IM-0209-0001.jpeg",
+      "true_label": "NORMAL",
+      "category": "both_correct",
+      "figure": "0000_IM-0209-0001.png",
+      "scratch": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.9999998807907104,
+        "p_normal": 0.9999998807907104,
+        "p_pneumonia": 1.2560947482143092e-07,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.9999973773956299,
+        "p_normal": 0.9999973773956299,
+        "p_pneumonia": 2.659705160112935e-06,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/train/NORMAL/NORMAL2-IM-0695-0001.jpeg",
+      "true_label": "NORMAL",
+      "category": "scratch_only_correct",
+      "figure": "0001_NORMAL2-IM-0695-0001.png",
+      "scratch": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.9994056224822998,
+        "p_normal": 0.9994056224822998,
+        "p_pneumonia": 0.0005943512660451233,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 0.6659765839576721,
+        "p_normal": 0.3340233564376831,
+        "p_pneumonia": 0.6659765839576721,
+        "cam_target": "PNEUMONIA",
+        "correct": false,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/train/PNEUMONIA/person1817_bacteria_4675.jpeg",
+      "true_label": "PNEUMONIA",
+      "category": "both_correct",
+      "figure": "0002_person1817_bacteria_4675.png",
+      "scratch": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 0.9999948740005493,
+        "p_normal": 5.068633072369266e-06,
+        "p_pneumonia": 0.9999948740005493,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 1.0,
+        "p_normal": 3.5450078428311826e-09,
+        "p_pneumonia": 1.0,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/train/NORMAL/IM-0223-0001.jpeg",
+      "true_label": "NORMAL",
+      "category": "both_correct",
+      "figure": "0003_IM-0223-0001.png",
+      "scratch": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.9999934434890747,
+        "p_normal": 0.9999934434890747,
+        "p_pneumonia": 6.60839532429236e-06,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.9999972581863403,
+        "p_normal": 0.9999972581863403,
+        "p_pneumonia": 2.7421449431130895e-06,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/train/NORMAL/NORMAL2-IM-0842-0001.jpeg",
+      "true_label": "NORMAL",
+      "category": "both_correct",
+      "figure": "0004_NORMAL2-IM-0842-0001.png",
+      "scratch": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 1.0,
+        "p_normal": 1.0,
+        "p_pneumonia": 4.0673981516192725e-08,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.999998927116394,
+        "p_normal": 0.999998927116394,
+        "p_pneumonia": 1.07252390080248e-06,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/train/PNEUMONIA/person511_virus_1027.jpeg",
+      "true_label": "PNEUMONIA",
+      "category": "both_correct",
+      "figure": "0005_person511_virus_1027.png",
+      "scratch": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 0.9999986886978149,
+        "p_normal": 1.2971770502190338e-06,
+        "p_pneumonia": 0.9999986886978149,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 0.9998089671134949,
+        "p_normal": 0.0001910864666569978,
+        "p_pneumonia": 0.9998089671134949,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/train/NORMAL/NORMAL2-IM-1023-0001.jpeg",
+      "true_label": "NORMAL",
+      "category": "both_correct",
+      "figure": "0006_NORMAL2-IM-1023-0001.png",
+      "scratch": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 1.0,
+        "p_normal": 1.0,
+        "p_pneumonia": 2.6316651968727456e-08,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.9999979734420776,
+        "p_normal": 0.9999979734420776,
+        "p_pneumonia": 2.021548425545916e-06,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/train/PNEUMONIA/person1908_bacteria_4811.jpeg",
+      "true_label": "PNEUMONIA",
+      "category": "both_correct",
+      "figure": "0007_person1908_bacteria_4811.png",
+      "scratch": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 1.0,
+        "p_normal": 1.1540675082244434e-09,
+        "p_pneumonia": 1.0,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 1.0,
+        "p_normal": 1.5892280824658656e-09,
+        "p_pneumonia": 1.0,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/test/NORMAL/NORMAL2-IM-0012-0001.jpeg",
+      "true_label": "NORMAL",
+      "category": "both_correct",
+      "figure": "0008_NORMAL2-IM-0012-0001.png",
+      "scratch": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.9999244213104248,
+        "p_normal": 0.9999244213104248,
+        "p_pneumonia": 7.551813905593008e-05,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.9996688365936279,
+        "p_normal": 0.9996688365936279,
+        "p_pneumonia": 0.0003311513573862612,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/train/NORMAL/IM-0580-0001.jpeg",
+      "true_label": "NORMAL",
+      "category": "both_correct",
+      "figure": "0009_IM-0580-0001.png",
+      "scratch": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.8603821992874146,
+        "p_normal": 0.8603821992874146,
+        "p_pneumonia": 0.13961781561374664,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.9209738373756409,
+        "p_normal": 0.9209738373756409,
+        "p_pneumonia": 0.07902615517377853,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/test/PNEUMONIA/person65_virus_123.jpeg",
+      "true_label": "PNEUMONIA",
+      "category": "both_correct",
+      "figure": "0010_person65_virus_123.png",
+      "scratch": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 0.9999996423721313,
+        "p_normal": 3.462222935013415e-07,
+        "p_pneumonia": 0.9999996423721313,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 0.9984946250915527,
+        "p_normal": 0.0015053729293867946,
+        "p_pneumonia": 0.9984946250915527,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/test/PNEUMONIA/person3_virus_16.jpeg",
+      "true_label": "PNEUMONIA",
+      "category": "both_correct",
+      "figure": "0011_person3_virus_16.png",
+      "scratch": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 0.9999996423721313,
+        "p_normal": 3.3677946476018406e-07,
+        "p_pneumonia": 0.9999996423721313,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 0.9999760389328003,
+        "p_normal": 2.4007022147998214e-05,
+        "p_pneumonia": 0.9999760389328003,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/train/PNEUMONIA/person281_bacteria_1327.jpeg",
+      "true_label": "PNEUMONIA",
+      "category": "both_correct",
+      "figure": "0012_person281_bacteria_1327.png",
+      "scratch": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 1.0,
+        "p_normal": 2.660044129410011e-10,
+        "p_pneumonia": 1.0,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 1.0,
+        "p_normal": 7.154886461080423e-09,
+        "p_pneumonia": 1.0,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/train/PNEUMONIA/person368_bacteria_1672.jpeg",
+      "true_label": "PNEUMONIA",
+      "category": "both_correct",
+      "figure": "0013_person368_bacteria_1672.png",
+      "scratch": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 0.9999896287918091,
+        "p_normal": 1.0348419891670346e-05,
+        "p_pneumonia": 0.9999896287918091,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 0.9925754070281982,
+        "p_normal": 0.007424590177834034,
+        "p_pneumonia": 0.9925754070281982,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/train/NORMAL/IM-0319-0001.jpeg",
+      "true_label": "NORMAL",
+      "category": "both_correct",
+      "figure": "0014_IM-0319-0001.png",
+      "scratch": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.9999953508377075,
+        "p_normal": 0.9999953508377075,
+        "p_pneumonia": 4.706858362624189e-06,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.9999986886978149,
+        "p_normal": 0.9999986886978149,
+        "p_pneumonia": 1.3525952908821637e-06,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/train/NORMAL/NORMAL2-IM-0427-0001.jpeg",
+      "true_label": "NORMAL",
+      "category": "both_correct",
+      "figure": "0015_NORMAL2-IM-0427-0001.png",
+      "scratch": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.9861695766448975,
+        "p_normal": 0.9861695766448975,
+        "p_pneumonia": 0.01383042149245739,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.9959474205970764,
+        "p_normal": 0.9959474205970764,
+        "p_pneumonia": 0.004052598029375076,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/test/PNEUMONIA/person146_bacteria_700.jpeg",
+      "true_label": "PNEUMONIA",
+      "category": "both_correct",
+      "figure": "0016_person146_bacteria_700.png",
+      "scratch": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 0.9997501969337463,
+        "p_normal": 0.00024974584812298417,
+        "p_pneumonia": 0.9997501969337463,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 1.0,
+        "p_normal": 2.1729725574459735e-08,
+        "p_pneumonia": 1.0,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/train/NORMAL/NORMAL2-IM-0609-0001.jpeg",
+      "true_label": "NORMAL",
+      "category": "both_correct",
+      "figure": "0017_NORMAL2-IM-0609-0001.png",
+      "scratch": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.9998538494110107,
+        "p_normal": 0.9998538494110107,
+        "p_pneumonia": 0.00014613445091526955,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "NORMAL",
+        "predicted_class_index": 0,
+        "predicted_probability": 0.9999864101409912,
+        "p_normal": 0.9999864101409912,
+        "p_pneumonia": 1.364828221994685e-05,
+        "cam_target": "NORMAL",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/train/PNEUMONIA/person281_bacteria_1331.jpeg",
+      "true_label": "PNEUMONIA",
+      "category": "both_correct",
+      "figure": "0018_person281_bacteria_1331.png",
+      "scratch": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 1.0,
+        "p_normal": 1.3760058870104785e-08,
+        "p_pneumonia": 1.0,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 0.9999998807907104,
+        "p_normal": 9.596733008265801e-08,
+        "p_pneumonia": 0.9999998807907104,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    },
+    {
+      "filepath": "data/raw/chest_xray/train/PNEUMONIA/person1286_virus_2209.jpeg",
+      "true_label": "PNEUMONIA",
+      "category": "both_correct",
+      "figure": "0019_person1286_virus_2209.png",
+      "scratch": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 0.9875828623771667,
+        "p_normal": 0.01241716556251049,
+        "p_pneumonia": 0.9875828623771667,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      },
+      "transfer": {
+        "prediction": "PNEUMONIA",
+        "predicted_class_index": 1,
+        "predicted_probability": 0.999969482421875,
+        "p_normal": 3.0477747714030556e-05,
+        "p_pneumonia": 0.999969482421875,
+        "cam_target": "PNEUMONIA",
+        "correct": true,
+        "cam_all_zero": false
+      }
+    }
+  ]
+}

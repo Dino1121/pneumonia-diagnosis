@@ -1,0 +1,12 @@
+# Project dependencies derived from the training and analysis code.
+# Versions recorded for the Grad-CAM++ run are in docs/assets/gradcam/manifest.json.
+# Install a PyTorch/Torchvision build appropriate for the local CPU/CUDA environment.
+torch
+torchvision
+numpy
+pandas
+scikit-learn
+Pillow
+matplotlib
+ImageHash
+grad-cam

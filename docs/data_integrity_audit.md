@@ -235,7 +235,7 @@ Train NORMAL IM-0401-0001.jpeg
 
 후보 이미지를 직접 확인한 결과 동일 이미지로 판단되는 사례는 발견되지 않았다.
 
-특히 exact perceptual duplicate에 해당하는 Distance 0 후보가 더 이상 존재하지 않았다.
+특히 pHash 값이 동일한 Distance 0 후보가 더 이상 발견되지 않았다. 같은 pHash 값이 이미지의 동일성을 보장하는 것은 아니다.
 
 ---
 
@@ -308,7 +308,7 @@ Duplicate 및 group leakage를 점검한 이후에도 높은 Scratch 성능이 �
 
 따라서 다른 병원, 장비, 환자 집단 또는 촬영 환경에서도 동일한 성능이 유지된다고 판단할 수 없다.
 
-향후 external validation 및 domain shift 평가가 필요하다.
+본 프로젝트에서는 external validation 및 domain shift 평가를 수행하지 않았다.
 
 ---
 

@@ -1,563 +1,342 @@
 # Pediatric Chest X-ray Pneumonia Classification
 
-소아 Chest X-ray 영상을 이용해 **NORMAL / PNEUMONIA를 분류**하고, 동일한 ResNet-50 architecture에서 **Scratch 학습과 ImageNet pretrained Transfer Learning**의 차이를 비교하는 프로젝트입니다.
+**Project Status: Completed — 실험 및 분석 종료**
 
-비교의 핵심은 다음 세 가지입니다.
+소아 흉부 X-ray에서 `NORMAL`과 `PNEUMONIA`를 분류하는 ResNet-50을 학습하고, **Scratch 학습과 ImageNet 사전학습 기반 Transfer Learning**을 비교했다. 두 학습 방식에서 최종 분류 성능뿐 아니라 Validation 성능의 수렴 양상과 Grad-CAM++의 공간적 반응 패턴이 어떻게 달라지는지 확인하는 것이 목적이었다.
 
-- 최종 분류 성능
-- 높은 Validation 성능 영역에 도달하는 수렴 속도
-- Grad-CAM++ 기반 모델 판단 근거
+초기 Scratch 모델에서 높은 Validation F1이 관찰된 뒤에는 데이터 분할과 중복 이미지부터 점검했다. 이를 바탕으로 최종 데이터 분할을 구성하고, 각 방식의 하이퍼파라미터를 탐색한 후 Validation F1으로 대표 모델을 선정했다. 선정된 모델은 별도의 내부 Test set에서 평가했으며, Grad-CAM++로 동일한 영상에 대한 반응 영역을 비교했다.
 
-> 본 프로젝트는 학습 및 연구 목적으로 수행되며 실제 의료 진단을 목적으로 하지 않습니다.
+## 핵심 결과
+
+최종 비교에 사용한 모델은 Scratch `exp_008`과 Transfer Learning `exp_003`이다. 두 모델은 동일한 ResNet-50 구조, 데이터 분할, 평가 절차를 사용했다.
+
+| 항목 | Scratch (`exp_008`) | Transfer Learning (`exp_003`) |
+| --- | ---: | ---: |
+| Best Validation F1 (PNEUMONIA) | 0.9884 | 0.9919 |
+| T95 도달 epoch | 4 | 5 |
+| T97 도달 epoch | 12 | 9 |
+| T99 도달 epoch | 51 | 12 |
+| Test Accuracy | 0.9761 | 0.9607 |
+| Test PNEUMONIA Recall | 0.9836 | 0.9719 |
+| Test PNEUMONIA F1 | 0.9836 | 0.9730 |
+| Test NORMAL Recall (Specificity) | 0.9557 | 0.9304 |
+| Test NORMAL F1 | 0.9557 | 0.9274 |
+| Test Macro F1 | 0.9697 | 0.9502 |
+| Test AUROC (PNEUMONIA) | 0.9951 | 0.9956 |
+| Test 오분류 | 14 / 585 | 23 / 585 |
+
+**결과를 정리하면 다음과 같다.**
+
+- Transfer Learning은 T95에서 Scratch와 유사한 도달 시점을 보였고, T97과 T99에서는 더 이른 epoch에 해당 기준을 충족했다. 특히 T99는 12 epoch와 51 epoch로 차이가 컸다.
+- 내부 Test에서는 Scratch가 Accuracy와 PNEUMONIA F1에서 더 높은 값을 기록했다. 두 모델의 AUROC는 약 0.995로 비슷했다.
+- 다수 클래스인 PNEUMONIA뿐 아니라 NORMAL 기준으로 계산해도 Scratch의 F1이 높았다. 클래스별 지표와 오분류 유형은 [내부 Test 평가](#5-내부-test-평가)에 정리했다.
+- Grad-CAM++에서는 일부 영상에 대해 Scratch가 영상 경계와 padding 인접 영역까지 넓게 반응했고, Transfer Learning은 상대적으로 흉곽 내부의 제한된 영역에 반응하는 사례가 관찰됐다.
+
+### 대표 학습 곡선
+
+| Scratch `exp_008` | Transfer Learning `exp_003` |
+| --- | --- |
+| ![Scratch train/validation loss](experiments/scratch/exp_008/loss_curve.png) | ![Transfer train/validation loss](experiments/transfer/exp_003/loss_curve.png) |
+
+### Grad-CAM++ 비교 이미지
+
+아래 두 그림은 동일한 Test 영상에 대해 입력 영상, Scratch CAM, Transfer Learning CAM을 비교한 결과다. 하나는 정상, 다른 하나는 폐렴 영상이며 두 모델 모두 정답을 예측한 사례다.
+
+**NORMAL — `IM-0223-0001.jpeg`**
+
+![NORMAL 입력 영상과 두 모델의 Grad-CAM++ 비교](docs/assets/gradcam/IM-0223-0001.png)
+
+**PNEUMONIA — `person3_virus_16.jpeg`**
+
+![PNEUMONIA 입력 영상과 두 모델의 Grad-CAM++ 비교](docs/assets/gradcam/person3_virus_16.png)
+
+Grad-CAM++는 내부 Test에서 NORMAL 10장과 PNEUMONIA 10장, 총 20장을 클래스 균형 무작위 추출(`seed=123`)하여 수행했다. 위 이미지는 그중 각 클래스를 보여주는 예시로 선택했다. 세 번째 비교 이미지, 각 사례의 예측 정보와 전체 20장에 대한 실행 기록은 [Grad-CAM++ 분석](docs/gradcam_analysis.md) 및 [manifest](docs/assets/gradcam/manifest.json)에 정리했다.
 
 ---
 
-## 1. 프로젝트 요약
+## 1. 데이터셋과 분할
 
-### 연구 질문
+원본 데이터는 Kaggle의 [Chest X-Ray Images (Pneumonia)](https://www.kaggle.com/datasets/paultimothymooney/chest-xray-pneumonia)이다. `NORMAL` 1,583장, `PNEUMONIA` 4,273장으로 총 5,856장이며, 원본 Train/Validation/Test는 각각 5,216장, 16장, 624장으로 구성돼 있다.
 
-> **Scratch 학습과 Transfer Learning은 분류 성능, 수렴 속도, 모델 판단 근거에서 어떤 차이를 보이는가?**
+원본 Validation 이미지가 16장에 불과해 모델 선택용 평가 집합으로 사용하기에는 크기가 작다고 판단했다. 따라서 원본 이미지 전체를 대상으로 새로운 Train/Validation/Test 분할을 생성했다.
 
-### 핵심 결과
+분할 과정에서는 동일한 식별자 패턴이 여러 이미지에 반복된다는 점을 이용했다.
+
+```text
+PNEUMONIA: person숫자 → PNEUMONIA_PERSON숫자
+NORMAL:    IM-숫자   → NORMAL_IM-숫자
+```
+
+파일명에서 추출한 `filename-derived group ID`를 그룹으로 사용하고, 다음과 같이 분할했다.
+
+```text
+StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=42)
+Fold 0~7: Train
+Fold 8:   Validation
+Fold 9:   Test
+```
+
+그룹 단위로 분할해 같은 ID가 Train, Validation, Test에 동시에 포함되지 않도록 했다. 이 ID는 데이터셋에서 제공하는 공식 환자 식별자가 아니라 파일명에서 추출한 값이다.
+
+### 데이터 중복 검사와 최종 분할
+
+초기 Scratch 모델의 Validation F1이 높게 나온 뒤, 중복 이미지가 평가에 영향을 주는지 확인했다. SHA-256으로 동일 파일을 검사하고 pHash로 시각적으로 유사한 교차 분할 이미지의 후보를 탐색했다.
+
+SHA-256 검사에서 다음 두 파일이 동일한 이미지로 확인됐다.
+
+```text
+NORMAL2-IM-0096-0001.jpeg
+NORMAL2-IM-0095-0001.jpeg
+```
+
+원본 데이터셋은 그대로 두고 `NORMAL2-IM-0095-0001.jpeg` 한 장을 실험 대상에서 제외했다. 이후 5,855장을 대상으로 그룹 기반 분할을 다시 생성했다.
+
+| Split | 전체 | NORMAL | PNEUMONIA | Group 수 |
+| --- | ---: | ---: | ---: | ---: |
+| Train | 4,684 | 1,266 | 3,418 | 2,233 |
+| Validation | 586 | 158 | 428 | 279 |
+| Test | 585 | 158 | 427 | 278 |
+| **합계** | **5,855** | **1,582** | **4,273** | **2,790** |
+
+최종 분할에 대해 다시 확인한 결과는 다음과 같다.
+
+| 점검 항목 | 결과 |
+| --- | ---: |
+| 서로 다른 Split 사이 filename-derived group 중복 | 0 |
+| 서로 다른 Split 사이 SHA-256 동일 파일 그룹 | 0 |
+| pHash Hamming distance 0 후보 | 0 |
+| pHash Hamming distance 2 후보 | 2쌍 |
+| pHash Hamming distance 4 후보 | 74쌍 |
+
+pHash 거리 2·4에 해당하는 후보는 이미지를 직접 비교했고, 동일 이미지로 판단되는 사례는 추가로 발견되지 않았다. pHash는 유사 영상의 검토 대상을 좁히는 용도로 사용했다.
+
+이후 Clean Split에서 Scratch 모델을 다시 학습했을 때도 높은 Validation 성능이 관찰됐다. 따라서 초기의 중복 이미지 한 쌍이 높은 Validation F1의 주된 원인이라고 판단하지는 않았다.
+
+최종 실험에 사용한 이미지 목록과 분할은 [`data/splits/group_split.csv`](data/splits/group_split.csv)에 저장했다. 분할 생성 스크립트는 파일 탐색 순서에 영향을 받을 수 있으므로 기존 실험을 확인할 때는 이 CSV를 기준으로 한다. 중복 발견부터 재분할 및 후보 검토 과정은 [데이터 무결성 검증 기록](docs/data_integrity_audit.md)에 자세히 정리했다.
+
+## 2. 전처리 및 모델
+
+### 전처리
+
+Scratch와 Transfer Learning에 동일한 데이터 전처리를 적용했다. 원본 X-ray의 종횡비를 유지한 채 224×224로 크기를 맞추고 남는 부분은 검은색으로 padding했다.
+
+```text
+Train
+Grayscale (1채널)
+→ 종횡비 유지 Resize 및 Zero Padding (224×224)
+→ Random Rotation (±10°, fill=0)
+→ Grayscale (3채널)
+→ ToTensor
+→ ImageNet Normalize
+
+Validation / Test
+Grayscale (1채널)
+→ 종횡비 유지 Resize 및 Zero Padding (224×224)
+→ Grayscale (3채널)
+→ ToTensor
+→ ImageNet Normalize
+```
+
+ImageNet 정규화에는 `mean=[0.485, 0.456, 0.406]`, `std=[0.229, 0.224, 0.225]`를 사용했다. Train에서만 회전을 적용했고, Horizontal Flip은 적용하지 않았다. 전처리의 정확한 순서는 [`src/data/transforms.py`](src/data/transforms.py)에 있다.
+
+### 모델
+
+두 방식 모두 출력이 2개인 ResNet-50으로 이진분류를 수행했다.
 
 | 항목 | Scratch | Transfer Learning |
+| --- | --- | --- |
+| Backbone | ResNet-50 | ResNet-50 |
+| 초기 가중치 | `weights=None` | `IMAGENET1K_V2` |
+| 초기 학습 | 전체 모델 학습 | FC-only 7 epoch |
+| 이후 학습 | 전체 모델 학습 유지 | 8 epoch부터 전체 Fine-tuning |
+
+Transfer Learning은 사전학습 backbone을 고정한 상태에서 FC 분류기만 7 epoch 동안 학습한 뒤 전체 모델의 가중치를 갱신했다. 이 두 단계의 학습 구성이 최종 Scratch 학습과 다른 조건 중 하나다.
+
+## 3. 실험 설계 및 대표 모델 선택
+
+### 하이퍼파라미터 탐색
+
+최종 비교에 앞서 Scratch에서는 서로 다른 학습률에 대한 탐색을 진행했고, Transfer Learning에서는 FC-only 기간을 결정하기 위한 pilot을 수행했다. 초기 Scratch 실험의 설정에는 `1e-3`, `5e-4` 학습률도 기록돼 있다. 초기 탐색 기록은 `experiments/scratch/exp_001`~`exp_007`, Transfer pilot은 `experiments/transfer/pilot_fc_freeze/`에서 확인할 수 있다.
+
+최종 비교는 두 방식에서 각각 Learning Rate와 Weight Decay를 조합한 **2×2 탐색**으로 구성했다. 공통 학습 설정은 다음과 같다.
+
+```text
+Architecture      ResNet-50 (2 classes)
+Optimizer         AdamW
+Batch size        32
+Epochs            100
+Training seed     42
+Loss              CrossEntropyLoss
+Scheduler         ReduceLROnPlateau
+Monitor           Validation loss
+Factor            0.1
+Patience          10
+Minimum LR        1e-6
+Positive class    PNEUMONIA
+```
+
+| 방식 | 실험 | LR | Weight Decay | Best Validation F1 | Best Epoch |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Scratch | **exp_008** | 1e-4 | 1e-3 | **0.9884** | 68 |
+| Scratch | exp_009 | 1e-4 | 1e-2 | 0.9837 | 92 |
+| Scratch | exp_010 | 5e-5 | 1e-3 | 0.9791 | 36 |
+| Scratch | exp_011 | 5e-5 | 1e-2 | 0.9813 | 64 |
+| Transfer | exp_002 | 1e-4 | 1e-3 | 0.9907 | 14 |
+| Transfer | **exp_003** | 1e-4 | 1e-2 | **0.9919** | 18 |
+| Transfer | exp_005 | 5e-5 | 1e-3 | 0.9907 | 30 |
+| Transfer | exp_004 | 5e-5 | 1e-2 | 0.9860 | 18 |
+
+Transfer Learning 표의 LR은 전체 Fine-tuning 단계에 적용한 값이다. FC-only 단계는 모든 최종 비교 실험에서 `lr=0.001`, 7 epoch로 설정했다.
+
+각 방식에서 **최고 Validation F1**을 기준으로 `exp_008`과 `exp_003`을 최종 대표 모델로 선정했다. Test 결과를 확인한 뒤 설정이나 대표 모델을 변경하지 않았다. 실험별 설정 및 epoch 기록은 각 폴더의 `config.json`, `history.csv`에 남아 있다.
+
+### Validation F1 수렴 분석
+
+분류 성능의 최댓값과 함께 일정 수준의 Validation F1에 언제 도달하는지 분석했다. 단일 epoch에서 높은 점수가 나온 것만으로 수렴했다고 판단하지 않도록 임계값 유지 조건을 추가했다.
+
+```text
+T95: 각 모델 Best Validation F1 × 0.95
+T97: 각 모델 Best Validation F1 × 0.97
+T99: 각 모델 Best Validation F1 × 0.99
+
+해당 epoch의 F1이 임계값 이상이고,
+그 epoch부터 10 epoch 중 8 epoch 이상이 임계값을 만족하는 최초 시점
+```
+
+| 수렴 기준 | Scratch `exp_008` | Transfer `exp_003` |
 | --- | ---: | ---: |
-| Representative Experiment | exp_008 | exp_003 |
-| Best Validation F1 | 0.9884 | **0.9919** |
-| T99 Convergence | 51 epoch | **12 epoch** |
-| Test Accuracy | **0.9761** | 0.9607 |
-| Test Recall | **0.9836** | 0.9719 |
-| Test Precision | **0.9836** | 0.9742 |
-| Test F1 | **0.9836** | 0.9730 |
-| Test AUROC | 0.9951 | **0.9956** |
+| T95 | 4 | 5 |
+| T97 | 12 | 9 |
+| T99 | 51 | 12 |
 
-핵심적으로 다음과 같은 차이가 관찰되었습니다.
+T95에서는 도달 시점이 유사했고, T97에서 3 epoch, T99에서 39 epoch의 차이가 나타났다. Transfer Learning의 T99 12 epoch에는 FC-only 7 epoch가 포함된다.
 
-- Transfer Learning은 T99 기준 Scratch보다 **39 epoch 빠르게** 높은 Validation 성능 영역에 도달했습니다.
-- 독립 Test set에서는 Scratch가 Accuracy, Recall, Precision, F1에서 더 높은 값을 기록했습니다.
-- Test AUROC는 두 모델 모두 약 `0.995`로 매우 유사했습니다.
-- Grad-CAM++ 비교에서는 Scratch가 일부 sample에서 영상 경계, padding 인접 영역 및 폐야 외부까지 넓게 반응한 반면, Transfer Learning은 상대적으로 폐야 내부의 제한된 영역에 집중하는 사례가 더 자주 관찰되었습니다.
-- 따라서 본 실험에서는 ImageNet pretraining의 효과가 최종 Test F1 향상보다는 **빠른 task adaptation 및 convergence**, 그리고 모델이 활용하는 시각적 특징의 차이에서 더 뚜렷하게 나타났습니다.
+이 지표는 각 모델 자신의 최고 Validation F1을 기준으로 계산한 사후 분석 결과다. 실제 학습 시간이나 동일한 절대 F1을 달성하는 데 걸린 시간을 비교한 값은 아니다. 상세 계산값은 [`results/comparison.csv`](results/comparison.csv), [`Scratch convergence.json`](experiments/scratch/exp_008/convergence.json), [`Transfer convergence.json`](experiments/transfer/exp_003/convergence.json)에 기록했다.
 
----
+## 4. 모델 평가 지표
 
-## 2. 연구 가설
+데이터셋에는 PNEUMONIA가 약 73%, NORMAL이 약 27% 포함돼 있다. 학습 당시 대표 모델 선정에는 **PNEUMONIA를 Positive Class로 둔 Binary F1**을 사용했다. 이 지표 외에도 내부 Test 평가에서는 NORMAL 기준 F1, Specificity, Macro F1을 혼동행렬에서 계산해 함께 정리했다.
 
-### H1 — 분류 성능
+- **PNEUMONIA F1:** 폐렴 클래스의 Precision과 Recall의 조화평균
+- **NORMAL F1:** NORMAL을 해당 클래스의 양성으로 간주하여 계산한 F1
+- **Macro F1:** 두 클래스 F1의 산술평균
+- **Specificity:** 실제 NORMAL 중 NORMAL로 분류한 비율
+- **AUROC:** PNEUMONIA 확률 점수의 순위 판별 성능
 
-> ImageNet pretrained Transfer Learning이 Scratch보다 높은 분류 성능을 보일 것이다.
+대표 모델 선정 기준은 실험 당시의 PNEUMONIA Binary F1을 그대로 유지했다. NORMAL F1과 Macro F1은 완료된 Test 혼동행렬의 수치를 추가로 읽기 쉽게 정리한 것이다.
 
-Validation에서는 Transfer Learning이 더 높은 Best F1을 기록했지만, 독립 Test set에서는 Scratch가 더 높은 Accuracy, Recall, Precision 및 F1을 기록했습니다.
+## 5. 내부 Test 평가
 
-따라서 **Test F1을 기준으로 H1은 지지되지 않았습니다.**
+최종 대표 모델을 선정한 뒤, 다른 원본 데이터셋을 추가하지 않고 **재분할한 내부 Test set 585장(NORMAL 158장, PNEUMONIA 427장)**을 평가했다.
 
-### H2 — 수렴 속도
+### Confusion matrix
 
-> Transfer Learning이 Scratch보다 더 적은 epoch에서 높은 Validation 성능의 안정적인 구간에 도달할 것이다.
-
-T99 결과:
+행은 실제 클래스, 열은 예측 클래스이며 클래스 순서는 `NORMAL`, `PNEUMONIA`이다.
 
 ```text
-Scratch  : Epoch 51
-Transfer : Epoch 12
+Scratch exp_008
+                   Pred NORMAL    Pred PNEUMONIA
+Actual NORMAL          151              7
+Actual PNEUMONIA         7            420
+
+Transfer exp_003
+                   Pred NORMAL    Pred PNEUMONIA
+Actual NORMAL          147             11
+Actual PNEUMONIA        12            415
 ```
 
-따라서 본 실험에서는 **Transfer Learning이 Scratch보다 훨씬 빠르게 높은 Validation 성능 영역에 도달했습니다.**
+Scratch의 오분류는 **14장**(NORMAL → PNEUMONIA 7장, PNEUMONIA → NORMAL 7장), Transfer Learning의 오분류는 **23장**(각각 11장, 12장)이었다.
 
----
+### 두 모델의 예측 결과 비교
 
-## 3. 데이터셋 및 분할
+각 모델의 [`test_predictions.csv`](experiments/scratch/exp_008/test_predictions.csv)를 이미지 파일명 기준으로 비교하면 다음과 같다.
 
-**Chest X-Ray Images (Pneumonia)** 데이터셋을 사용합니다.
+| Test 이미지 구분 | 이미지 수 |
+| --- | ---: |
+| 두 모델 모두 정답 | 552 |
+| Scratch만 정답 | 19 |
+| Transfer Learning만 정답 | 10 |
+| 두 모델 모두 오답 | 4 |
+| **합계** | **585** |
 
-원본 데이터셋은 총 **5,856장**입니다.
+두 모델의 정답 여부가 달랐던 이미지는 29장이다. Scratch가 19장에서, Transfer Learning이 10장에서 단독으로 정답을 맞혔다. 단일 모델의 오분류 개수 차이 9장은 이 29개 이미지에서 나타난 정답 여부 차이의 합으로 볼 수 있다.
 
-| Class | Images | Ratio |
-| --- | ---: | ---: |
-| NORMAL | 1,583 | 27.0% |
-| PNEUMONIA | 4,273 | 73.0% |
-| **Total** | **5,856** | **100%** |
+PNEUMONIA F1은 Scratch 0.9836, Transfer 0.9730이었다. NORMAL F1은 각각 0.9557, 0.9274이고 Macro F1은 0.9697, 0.9502로 계산된다. 두 모델의 AUROC는 0.9951과 0.9956으로 유사했다. 모델별 성능의 차이를 살펴볼 때 다수 클래스의 Binary F1뿐 아니라 소수 클래스의 오분류도 함께 확인할 필요가 있음을 보여주는 결과다.
 
-원본 Validation set은 16장으로 매우 작기 때문에 기존 split을 그대로 사용하지 않고 전체 데이터를 기반으로 새로운 Train / Validation / Test split을 구성했습니다.
+각 지표의 원본 기록은 [`Scratch test_results.json`](experiments/scratch/exp_008/test_results.json), [`Transfer test_results.json`](experiments/transfer/exp_003/test_results.json)에 있고, 표본별 예측은 각각 [`Scratch test_predictions.csv`](experiments/scratch/exp_008/test_predictions.csv), [`Transfer test_predictions.csv`](experiments/transfer/exp_003/test_predictions.csv)에 저장했다.
 
-### 그룹 기반 데이터 분할
+## 6. Grad-CAM++ 분석
 
-파일명에서 반복되는 식별자 패턴을 추출해 **filename-derived group ID**를 정의했습니다.
+두 대표 모델이 동일한 X-ray 이미지에서 어느 영역에 반응하는지 비교하기 위해 Grad-CAM++를 적용했다.
 
 ```text
-PNEUMONIA → personXX
-NORMAL    → IM-XXXX
+Models       Scratch exp_008 / Transfer exp_003
+Target layer ResNet-50 layer4[-1]
+Target score Predicted-class logit (pre-softmax)
+Sampling     Internal Test, NORMAL 10 + PNEUMONIA 10
+Seed         123
 ```
 
-이후 `StratifiedGroupKFold`를 사용했습니다.
+각 모델이 예측한 클래스를 CAM target으로 사용했다. 예를 들어 NORMAL을 예측한 경우 NORMAL logit에 대한 CAM을 생성했으며, 두 모델의 예측 클래스가 다르면 CAM target도 서로 달라진다.
 
-```text
-n_splits     = 10
-shuffle      = True
-random_state = 42
+20개 표본의 실행 기록에는 두 모델 모두 정답인 경우가 19개, Scratch만 정답인 경우가 1개 포함돼 있다. 문서에 수록한 세 PNG는 모두 두 모델이 정답을 맞힌 사례다. `docs/assets/gradcam/`에 다음 이미지와 실행 기록을 보존했다.
 
-Fold 0-7 → Train
-Fold 8   → Validation
-Fold 9   → Test
-```
+| 문서에 수록한 이미지 | 실제 클래스 | Scratch 예측 | Transfer 예측 |
+| --- | --- | --- | --- |
+| [`IM-0209-0001.png`](docs/assets/gradcam/IM-0209-0001.png) | NORMAL | NORMAL | NORMAL |
+| [`IM-0223-0001.png`](docs/assets/gradcam/IM-0223-0001.png) | NORMAL | NORMAL | NORMAL |
+| [`person3_virus_16.png`](docs/assets/gradcam/person3_virus_16.png) | PNEUMONIA | PNEUMONIA | PNEUMONIA |
 
-> 데이터셋에 공식 patient-level metadata가 제공되지 않으므로 filename-derived group ID를 실제 patient ID와 동일하게 해석하지 않습니다.
+Scratch 모델은 일부 영상에서 흉곽 내부 외에도 영상 경계, zero padding 인접 영역에 넓은 CAM 활성화를 보였다. Transfer Learning에서는 상대적으로 흉곽 내부의 제한된 영역에 CAM이 나타나는 사례가 관찰됐다. 이는 입력의 어느 부분에 모델 반응이 나타나는지 살펴본 **정성 분석 결과**다.
 
-### 데이터 무결성 검증
+각 CAM은 모델별로 독립 정규화했다. 따라서 이미지 간 색 강도의 크기를 직접 비교하거나, CAM 분포만으로 padding 의존 여부나 병변 위치를 확정하지 않았다. 자세한 그림별 분석은 [`docs/gradcam_analysis.md`](docs/gradcam_analysis.md)에, 전체 실행 조건·20개 표본 정보·체크포인트 SHA-256은 [`manifest.json`](docs/assets/gradcam/manifest.json)에 남아 있다.
 
-초기 실험에서 높은 Validation 성능이 관찰되어 leakage 및 duplicate 가능성을 추가로 점검했습니다.
+## 7. 실행 및 재현
 
-- SHA-256 exact duplicate 검사
-- 서로 다른 split에 존재하는 동일 이미지 1쌍 확인
-- 중복 이미지 1장 제외 후 전체 split 재생성
-- pHash Hamming Distance ≤ 4인 cross-split 후보 검사
-- 최종 split에서 cross-split SHA-256 exact duplicate 0
-- 최종 split에서 filename-derived group overlap 0
+분할 CSV, 학습 코드, 실험별 설정·학습 기록·Test 예측 파일을 저장소에 보존했다. 기존 실험을 확인할 때 사용하는 주요 경로는 다음과 같다.
 
-최종 실험에는 **5,855장**을 사용합니다.
+| 내용 | 경로 |
+| --- | --- |
+| 원본 데이터 출처 | [Kaggle Chest X-Ray Images (Pneumonia)](https://www.kaggle.com/datasets/paultimothymooney/chest-xray-pneumonia) |
+| 고정된 데이터 분할 | [`data/splits/group_split.csv`](data/splits/group_split.csv) |
+| 학습 코드 | [`train.py`](train.py) |
+| 대표 실험 설정 | [`experiments/scratch/exp_008/config.json`](experiments/scratch/exp_008/config.json), [`experiments/transfer/exp_003/config.json`](experiments/transfer/exp_003/config.json) |
+| 수렴 계산 | [`scripts/analyze_convergence.py`](scripts/analyze_convergence.py) |
+| Test 평가 | [`scripts/evaluate_test.py`](scripts/evaluate_test.py) |
+| Grad-CAM++ 분석 | [`scripts/compare_gradcam.py`](scripts/compare_gradcam.py) |
+| 데이터 무결성 검사 | [`docs/data_integrity_audit.md`](docs/data_integrity_audit.md) |
+| 실행 명령과 실험 인덱스 | [`docs/reproducibility.md`](docs/reproducibility.md) |
 
-| Split | Images | Groups | NORMAL | PNEUMONIA |
-| --- | ---: | ---: | ---: | ---: |
-| Train | 4,684 | 2,233 | 1,266 | 3,418 |
-| Validation | 586 | 279 | 158 | 428 |
-| Test | 585 | 278 | 158 | 427 |
-| **Total** | **5,855** | **2,790** | **1,582** | **4,273** |
-
-자세한 검증 과정은 [`docs/data_integrity_audit.md`](docs/data_integrity_audit.md)에 기록합니다.
-
----
-
-## 4. 전처리
-
-모든 영상은 ResNet-50 입력을 위해 `224 × 224` 크기로 변환합니다.
-
-### Resize & Padding
-
-원본 영상의 aspect ratio를 유지하면서 resize한 뒤 부족한 영역에 padding을 적용합니다.
-
-```text
-Input size    : 224 × 224
-Aspect ratio  : Preserved
-Padding value : 0
-```
-
-### 채널 변환
-
-Chest X-ray를 grayscale로 처리한 뒤 3-channel로 변환합니다.
-
-```text
-Grayscale
-    ↓
-1 Channel
-    ↓
-Repeat
-    ↓
-3 Channels
-```
-
-### 정규화
-
-Scratch와 Transfer Learning 모두 동일한 ImageNet normalization을 사용합니다.
-
-```text
-mean = [0.485, 0.456, 0.406]
-std  = [0.229, 0.224, 0.225]
-```
-
-### Data Augmentation
-
-Train set에만 다음 augmentation을 적용합니다.
-
-```text
-Random Rotation : ±10°
-Rotation Fill   : 0
-```
-
-Validation과 Test에는 augmentation을 적용하지 않습니다.
-
-Horizontal Flip은 영상의 좌우 해부학적 위치를 바꿀 수 있어 제외했습니다.
-
----
-
-## 5. 모델
-
-### ResNet-50 Scratch
-
-```text
-Architecture : ResNet-50
-Weights      : None
-Output       : 2 classes
-```
-
-모든 parameter를 random initialization 상태에서 처음부터 학습합니다.
-
-### ResNet-50 Transfer Learning
-
-ImageNet pretrained ResNet-50의 `IMAGENET1K_V2` weights를 사용합니다.
-
-학습은 두 단계로 진행합니다.
-
-```text
-Epoch 1-7
-Backbone      : Frozen
-Classifier    : Trainable
-Learning Rate : 0.001
-
-Epoch 8-100
-Backbone       : Unfrozen
-Entire Network : Trainable
-```
-
-FC-only 기간은 pilot experiment 결과를 바탕으로 **7 epochs**로 고정했습니다.
-
----
-
-## 6. 실험 설계
-
-Scratch와 Transfer Learning 모두 동일한 규모의 **2×2 Hyperparameter Search**를 수행했습니다.
-
-### 공통 설정
-
-```text
-Architecture      : ResNet-50
-Optimizer         : AdamW
-Batch Size        : 32
-Epochs            : 100
-Seed              : 42
-Scheduler         : ReduceLROnPlateau
-Monitor           : Validation Loss
-Factor            : 0.1
-Patience          : 10
-Minimum LR        : 1e-6
-Loss              : CrossEntropyLoss
-Positive Class    : PNEUMONIA
-```
-
-### Scratch 탐색 결과
-
-| Learning Rate | Weight Decay | Experiment | Best Val F1 | Best Epoch |
-| ---: | ---: | --- | ---: | ---: |
-| 0.0001 | 0.001 | **exp_008** | **0.9884** | 68 |
-| 0.0001 | 0.01 | exp_009 | 0.9837 | 92 |
-| 0.00005 | 0.001 | exp_010 | 0.9789 | 83 |
-| 0.00005 | 0.01 | exp_011 | 0.9813 | 64 |
-
-### Transfer Learning 탐색 결과
-
-FC-only phase:
-
-```text
-Freeze Epochs : 7
-Freeze LR     : 0.001
-```
-
-| Fine-tune LR | Weight Decay | Experiment | Best Val F1 | Best Epoch |
-| ---: | ---: | --- | ---: | ---: |
-| 0.0001 | 0.001 | exp_002 | 0.9907 | 14 |
-| 0.0001 | 0.01 | **exp_003** | **0.9919** | 18 |
-| 0.00005 | 0.001 | exp_005 | 0.9907 | 30 |
-| 0.00005 | 0.01 | exp_004 | 0.9860 | 18 |
-
-각 학습 방식에서 **Best Validation F1이 가장 높은 configuration**을 representative model로 선택했습니다.
-
-```text
-Scratch           : exp_008
-Transfer Learning : exp_003
-```
-
----
-
-## 7. 수렴 속도 분석
-
-단일 epoch에서 발생한 높은 Validation F1을 수렴으로 판단하지 않기 위해 상대 threshold와 stability condition을 함께 사용했습니다.
-
-```text
-T95 = 0.95 × Best Validation F1
-T97 = 0.97 × Best Validation F1
-T99 = 0.99 × Best Validation F1
-```
-
-Epoch `t`가 다음 조건을 만족하는 가장 이른 시점을 convergence epoch으로 정의합니다.
-
-```text
-F1(t) ≥ Threshold
-
-and
-
-epochs t ... t+9 중
-F1 ≥ Threshold인 epoch가 최소 8개
-```
-
-`T99`를 primary convergence metric으로 사용하고 `T95`, `T97`을 sensitivity analysis로 사용합니다.
-
-| Model | T95 | T97 | T99 |
-| --- | ---: | ---: | ---: |
-| Scratch exp_008 | **4** | 12 | 51 |
-| Transfer exp_003 | 5 | **9** | **12** |
-
-Transfer Learning의 global epoch에는 FC-only phase가 포함됩니다.
-
-```text
-Global Epoch 1-7 : FC-only
-Global Epoch 8   : Fine-tuning Epoch 1
-...
-Global Epoch 12  : Fine-tuning Epoch 5
-```
-
-> 본 convergence definition은 post-hoc analysis metric이며 early stopping criterion이 아닙니다.
-
----
-
-## 8. 독립 Test 평가
-
-Representative model은 Validation 결과만으로 먼저 확정한 뒤 독립 Test set 585장으로 최종 평가했습니다.
-
-Test 결과는 model 또는 hyperparameter를 다시 선택하는 데 사용하지 않았습니다.
-
-| Metric | Scratch exp_008 | Transfer exp_003 |
-| --- | ---: | ---: |
-| Accuracy | **0.9761** | 0.9607 |
-| Recall | **0.9836** | 0.9719 |
-| Precision | **0.9836** | 0.9742 |
-| F1-score | **0.9836** | 0.9730 |
-| AUROC | 0.9951 | **0.9956** |
-
-### Confusion Matrix
-
-**Scratch exp_008**
-
-```text
-             Predicted
-             NORMAL  PNEUMONIA
-
-Actual NORMAL       151       7
-Actual PNEUMONIA      7     420
-
-TN = 151
-FP = 7
-FN = 7
-TP = 420
-```
-
-**Transfer exp_003**
-
-```text
-             Predicted
-             NORMAL  PNEUMONIA
-
-Actual NORMAL       147      11
-Actual PNEUMONIA     12     415
-
-TN = 147
-FP = 11
-FN = 12
-TP = 415
-```
-
----
-
-## 9. Grad-CAM++ 분석
-
-대표 모델인 Scratch `exp_008`과 Transfer Learning `exp_003`에 Grad-CAM++을 적용해 동일한 Test 이미지에서 모델의 판단 근거를 비교합니다.
-
-### Predicted-class Target
-
-Grad-CAM++ target은 고정된 PNEUMONIA class가 아니라 **각 모델이 실제로 예측한 class**를 사용합니다.
-
-```text
-Predicted NORMAL
-→ Grad-CAM++ target: NORMAL
-
-Predicted PNEUMONIA
-→ Grad-CAM++ target: PNEUMONIA
-```
-
-따라서 각 heatmap은 모델이 자신의 최종 예측을 형성하는 데 어떤 영역을 활용했는지 보여줍니다.
-
-Evaluation metric에서는 기존과 동일하게 `PNEUMONIA`를 positive class로 정의하며, 이는 Grad-CAM++ target과 별개의 설정입니다.
-
-### 비교 설정
-
-```text
-Scratch           : exp_008
-Transfer Learning : exp_003
-Target Layer      : layer4[-1]
-CAM Method        : Grad-CAM++
-Target Score      : pre-softmax predicted-class logit
-```
-
-Grad-CAM++ 비교용 sample은 Test split에서 class-balanced random sampling으로 선택합니다.
-
-기본값:
-
-```text
-NORMAL      : 5 images
-PNEUMONIA   : 5 images
-Total       : 10 images
-Random Seed : 42
-```
-
-### Grad-CAM++ 비교 결과
-
-현재 확인한 여러 Test sample에서는 다음과 같은 차이가 관찰되었습니다.
-
-- Scratch는 일부 sample에서 폐야 내부뿐 아니라 영상 경계, padding 인접 영역 및 폐야 외부까지 넓게 반응했습니다.
-- Transfer Learning은 상대적으로 폐야 내부의 제한된 영역에 더 집중하는 사례가 자주 나타났습니다.
-- 두 모델이 동일한 정답을 예측하더라도 heatmap의 spatial pattern은 다를 수 있었습니다.
-
-이 결과는 Scratch 모델이 일부 sample에서 **비병변적 또는 shortcut-like visual feature에 더 의존했을 가능성**을 시사합니다.
-
-다만 Grad-CAM++는 post-hoc attribution method이므로 이 결과만으로 shortcut learning 또는 병변 localization을 확정하지 않습니다.
-
-자세한 내용은 [`docs/gradcam_analysis.md`](docs/gradcam_analysis.md)에 기록합니다.
-
----
-
-## 10. 실행 방법
-
-### Grad-CAM++ 기본 실행
+원본 데이터는 Git 저장소에 포함하지 않았다. [Kaggle 데이터셋](https://www.kaggle.com/datasets/paultimothymooney/chest-xray-pneumonia)의 원본 디렉터리 구조를 `data/raw/chest_xray/{train,val,test}/{NORMAL,PNEUMONIA}/`에 맞춰 배치하고, 평가에는 저장된 `group_split.csv`를 사용한다.
 
 ```bash
-python scripts/compare_gradcam.py
+python -m pip install -r requirements.txt
+
+# 기존 대표 실험 설정과 대응하는 Scratch 학습
+python train.py --model scratch --optimizer adamw --lr 0.0001 --weight_decay 0.001 --batch_size 32 --epochs 100 --scheduler plateau --scheduler_factor 0.1 --scheduler_patience 10 --min_lr 0.000001
+
+# 기존 대표 실험 설정과 대응하는 Transfer Learning 학습
+python train.py --model transfer --optimizer adamw --freeze_epochs 7 --freeze_lr 0.001 --finetune_lr 0.0001 --weight_decay 0.01 --batch_size 32 --epochs 100 --scheduler plateau --scheduler_factor 0.1 --scheduler_patience 10 --min_lr 0.000001
 ```
 
-### 다른 Random Seed 사용
+학습을 재실행하면 `train.py`가 새로운 `exp_NNN` 폴더를 생성한다. 기존 모델을 재평가하려면 각 실험 폴더의 `best_model.pth`가 필요하며, `.pth` 체크포인트는 Git에서 제외했다. Grad-CAM++ 실행 당시 모델을 식별하는 SHA-256과 라이브러리 버전은 `docs/assets/gradcam/manifest.json`에 기록했다.
 
-```bash
-python scripts/compare_gradcam.py --seed 123
-```
+수렴 지표 재계산, Test 평가, Grad-CAM++ 실행 명령과 출력 위치는 [재현 안내](docs/reproducibility.md)에 정리했다. Test 평가 스크립트는 해당 실험 폴더의 결과 파일을 덮어쓰므로, 기존 기록을 보존하려면 별도 작업 공간에서 실행한다.
 
-### 이미지 수 변경
+## 8. 실험의 범위와 한계
 
-```bash
-python scripts/compare_gradcam.py --num_images 20 --seed 123
-```
+이 프로젝트는 **데이터 무결성 검증 → 학습 방식 비교 → Validation 기반 모델 선정 → 내부 Test 평가 → Grad-CAM++ 정성 분석**까지 수행하고 종료했다.
 
-자동 생성되는 Grad-CAM++ 결과는 `results/gradcam/` 아래에 저장되며 Git repository에는 포함하지 않습니다.
+실험 결과의 해석 범위는 다음과 같다.
+
+- 학습 실험은 단일 seed(`42`)와 제한된 하이퍼파라미터 탐색을 사용했다. Scratch와 Transfer Learning의 일반적인 성능 우열이나 사전학습 효과만의 기여를 분리한 실험은 아니다.
+- 수렴 분석은 모델마다 다른 최고 Validation F1에 상대적으로 정의된 임계값을 기준으로 했다. 실제 학습 시간 및 사전학습 계산 비용은 비교하지 않았다.
+- 분할에 이용한 ID는 파일명으로부터 추출했다. 공식 patient ID 기준의 독립성 검증과 다른 병원·촬영 환경에서의 외부 검증은 수행하지 않았다.
+- Grad-CAM++는 정성적으로 비교했다. 폐야 mask를 이용한 정량 분석이나 padding 영역 교란 실험은 수행하지 않았다.
+- 다중 seed 반복 학습과 통계적 유의성 검정은 수행하지 않았다.
+
+프로젝트에서 다룬 세 평가 관점은 분류 지표, 수렴 시점, 공간적 반응 패턴이다. Scratch와 Transfer Learning은 이 지표들에서 서로 다른 결과를 보였고, 그 차이를 확인할 수 있도록 학습 설정·로그·평가 파일·분석 이미지를 함께 남겼다.
 
 ---
 
-## 11. 프로젝트 구조
-
-```text
-pneumonia-diagnosis/
-│
-├── data/
-│   ├── raw/
-│   └── splits/
-│       ├── group_split.csv
-│       └── near_duplicates.csv
-│
-├── docs/
-│   ├── data_integrity_audit.md
-│   └── gradcam_analysis.md
-│
-├── experiments/
-│   ├── final_2x2_experiment_grid.csv
-│   ├── scratch/
-│   └── transfer/
-│
-├── results/
-│   └── comparison.csv
-│
-├── scripts/
-│   ├── analyze_convergence.py
-│   ├── compare_gradcam.py
-│   ├── compare_models.py
-│   ├── evaluate_test.py
-│   ├── check_duplicates.py
-│   ├── check_near_duplicates.py
-│   ├── inspect_dataset.py
-│   ├── inspect_dataloader.py
-│   ├── inspect_preprocess.py
-│   ├── plot_history.py
-│   └── visualize_near_duplicates.py
-│
-├── src/
-│   ├── data/
-│   │   ├── dataloader.py
-│   │   ├── dataset.py
-│   │   ├── split_dataset.py
-│   │   └── transforms.py
-│   │
-│   ├── models/
-│   │   └── resnet.py
-│   │
-│   └── training/
-│       └── optimizer.py
-│
-├── train.py
-├── README.md
-└── .gitignore
-```
-
----
-
-## 12. 진행 상황
-
-- [x] Dataset analysis
-- [x] Group-aware Train / Validation / Test split
-- [x] SHA-256 / pHash data integrity verification
-- [x] Preprocessing & augmentation pipeline
-- [x] ResNet-50 Scratch training
-- [x] ImageNet Transfer Learning
-- [x] FC-only → Full Fine-tuning pipeline
-- [x] Scratch 2×2 Hyperparameter Search
-- [x] Transfer Learning 2×2 Hyperparameter Search
-- [x] Representative model selection
-- [x] T95 / T97 / T99 convergence analysis
-- [x] Independent Test evaluation
-- [x] Grad-CAM++ Scratch / Transfer Learning comparison
-- [ ] PyQt UI
-
----
-
-## 13. 한계
-
-### Patient-level Grouping
-
-데이터셋에 공식 patient-level metadata가 제공되지 않아 filename-derived identifier를 group ID로 사용했습니다.
-
-따라서 현재 grouping을 검증된 patient ID와 동일하게 해석할 수 없습니다.
-
-### Near-duplicate Detection
-
-pHash는 이미지의 의미적 동일성을 보장하지 않으므로 near-duplicate candidate screening 용도로 사용했습니다.
-
-탐지된 후보 이미지는 직접 시각적으로 확인했습니다.
-
-### 제한된 Hyperparameter Search
-
-Scratch와 Transfer Learning 모두 동일한 규모의 제한된 2×2 search space를 사용했습니다.
-
-본 결과를 각 학습 방식이 달성할 수 있는 절대적인 최대 성능으로 해석하지 않습니다.
-
-### Freeze 기간
-
-Transfer Learning의 FC-only freeze 기간은 pilot experiment를 기반으로 7 epochs로 고정했습니다.
-
-각 configuration마다 freeze duration을 별도로 탐색하지 않았습니다.
-
-### 단일 Random Seed
-
-주요 비교 실험은 `seed=42`의 단일 random seed를 사용했습니다.
-
-따라서 Scratch와 Transfer Learning 사이의 작은 성능 차이는 신중하게 해석해야 하며, 보다 강한 비교를 위해서는 multiple random seeds를 이용한 반복 실험이 필요합니다.
-
-### Validation Selection Bias
-
-Validation set은 hyperparameter configuration 선택과 exploratory analysis에 반복적으로 사용되었습니다.
-
-독립 Test set은 representative model을 확정한 이후에만 평가했으며 Test 결과를 이용한 model reselection은 수행하지 않았습니다.
-
-### Grad-CAM++ 해석의 한계
-
-Grad-CAM++는 모델이 어떤 영역을 활용했는지 확인하기 위한 post-hoc explainability method입니다.
-
-따라서 heatmap을 실제 병변 위치, 임상적 타당성 또는 causal explanation으로 직접 해석하지 않습니다.
-
-### 외부 데이터 일반화
-
-현재 평가는 단일 pediatric Chest X-ray dataset 내부의 held-out Test split을 기반으로 합니다.
-
-향후에는 명확한 patient-level metadata를 제공하는 데이터셋 및 외부 Chest X-ray dataset을 이용한 external validation과 domain shift 평가가 필요합니다.
+**상세 문서:** [데이터 무결성 검증](docs/data_integrity_audit.md) · [Grad-CAM++ 분석](docs/gradcam_analysis.md) · [실행 및 재현](docs/reproducibility.md)
